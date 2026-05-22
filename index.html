@@ -135,7 +135,16 @@
     <button id="next-hole">&#8594;</button>
   </div>
   <button id="export-btn">Export Round CSV</button>
-  <button id="disk-save-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">💾 Save data</button>
+  <button id="saves-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">💾 Saves</button>
+</div>
+
+<div id="saves-bar" style="display:none;background:#1e1e1e;border-bottom:1px solid #3a3a3a;padding:10px 16px;flex-direction:column;gap:8px;">
+  <div id="saves-list"></div>
+  <div style="display:flex;gap:6px;align-items:center;border-top:1px solid #2a2a2a;padding-top:8px;margin-top:2px;">
+    <span style="color:#888;font-size:12px;white-space:nowrap;">Save as</span>
+    <input id="save-name-input" type="text" placeholder="data.json" style="flex:1;background:#2a2a2a;border:1px solid #444;color:#e0e0e0;padding:4px 8px;border-radius:3px;font-size:13px;">
+    <button id="do-save-btn" style="border:none;padding:5px 14px;border-radius:3px;background:#2a6a2a;color:#fff;cursor:pointer;font-size:13px;">💾 Download</button>
+  </div>
 </div>
 
 <div id="main">
@@ -1453,27 +1462,86 @@ function applyData(data) {
   if (data.roundData)      { roundData = data.roundData; localStorage.setItem('stonebridge_round', JSON.stringify(roundData)); }
 }
 
-// On load, fetch data.json from same directory (works on GitHub Pages).
-// Falls back to localStorage silently if not available (local file://).
+// Remembers which save was last loaded so startup auto-fetches the right file.
+let lastLoadedSave = localStorage.getItem('last_loaded_save') || 'data.json';
+
 async function loadFromRepo() {
   try {
-    const res = await fetch('./saves/data.json');
+    const res = await fetch(`./saves/${lastLoadedSave}`);
     if (!res.ok) return;
-    const data = await res.json();
-    applyData(data);
-  } catch (e) { /* not available locally — localStorage is used instead */ }
+    applyData(await res.json());
+  } catch (e) { /* running as file:// — localStorage used instead */ }
 }
 
-document.getElementById('disk-save-btn').addEventListener('click', () => {
+async function listSaves() {
+  try {
+    const res = await fetch('https://api.github.com/repos/mloreti/g-track/contents/saves');
+    if (!res.ok) return [];
+    const files = await res.json();
+    return files.filter(f => f.name.endsWith('.json')).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { return []; }
+}
+
+async function populateSavesList() {
+  const list = document.getElementById('saves-list');
+  list.innerHTML = '<span style="color:#555;font-size:12px;">Loading…</span>';
+  const files = await listSaves();
+  if (files.length === 0) {
+    list.innerHTML = '<span style="color:#555;font-size:12px;">No saves found — push a .json file to saves/ to see it here.</span>';
+    return;
+  }
+  list.innerHTML = '';
+  files.forEach(f => {
+    const active = f.name === lastLoadedSave;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #2a2a2a;';
+    row.innerHTML = `
+      <span style="flex:1;font-size:13px;color:${active ? '#6cf' : '#aaa'};">${f.name}${active ? '  ·  active' : ''}</span>
+      <button class="load-save-btn" data-file="${f.name}"
+        style="border:1px solid ${active ? '#2a6a9a' : '#444'};padding:3px 12px;border-radius:3px;background:${active ? '#1a4a6a' : '#2a2a2a'};color:${active ? '#6cf' : '#888'};cursor:pointer;font-size:12px;">
+        ${active ? '✓ Loaded' : 'Load'}
+      </button>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.load-save-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const fname = btn.dataset.file;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`./saves/${fname}`);
+        if (!res.ok) throw new Error();
+        applyData(await res.json());
+        lastLoadedSave = fname;
+        localStorage.setItem('last_loaded_save', fname);
+        loadHole(currentHole);
+        populateSavesList();
+      } catch (e) {
+        btn.textContent = '✗ Error';
+        setTimeout(() => populateSavesList(), 1500);
+      }
+    });
+  });
+}
+
+document.getElementById('saves-btn').addEventListener('click', () => {
+  const bar = document.getElementById('saves-bar');
+  const opening = bar.style.display !== 'flex';
+  bar.style.display = opening ? 'flex' : 'none';
+  if (opening) populateSavesList();
+});
+
+document.getElementById('do-save-btn').addEventListener('click', () => {
+  const raw = document.getElementById('save-name-input').value.trim() || 'data.json';
+  const fname = raw.endsWith('.json') ? raw : raw + '.json';
   const blob = new Blob([diskPayload()], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'data.json';
+  a.download = fname;
   a.click();
   URL.revokeObjectURL(a.href);
-  const btn = document.getElementById('disk-save-btn');
-  btn.textContent = '✓ Saved';
-  setTimeout(() => { btn.textContent = '💾 Save data'; }, 1400);
+  const btn = document.getElementById('do-save-btn');
+  btn.textContent = '✓ Downloaded';
+  setTimeout(() => { btn.textContent = '💾 Download'; }, 1400);
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
