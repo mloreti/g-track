@@ -1457,7 +1457,7 @@ function applyData(data) {
 // Falls back to localStorage silently if not available (local file://).
 async function loadFromRepo() {
   try {
-    const res = await fetch('./data.json');
+    const res = await fetch('./saves/data.json');
     if (!res.ok) return;
     const data = await res.json();
     applyData(data);
