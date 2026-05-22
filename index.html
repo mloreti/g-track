@@ -135,16 +135,7 @@
     <button id="next-hole">&#8594;</button>
   </div>
   <button id="export-btn">Export Round CSV</button>
-  <button id="cloud-push-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">☁ Push</button>
-  <button id="cloud-pull-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">☁ Pull</button>
-  <button id="cloud-token-btn" style="border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;" title="Set GitHub token">🔑</button>
-</div>
-
-<div id="token-bar" style="display:none;background:#1a1a2a;border-bottom:1px solid #3a3a5a;padding:8px 16px;align-items:center;gap:8px;">
-  <span style="color:#aaa;font-size:12px;white-space:nowrap;">GitHub token</span>
-  <input id="token-input" type="password" placeholder="ghp_…" style="flex:1;background:#2a2a3a;border:1px solid #555;color:#e0e0e0;padding:4px 8px;border-radius:3px;font-size:13px;">
-  <button id="token-save-btn" style="border:none;padding:5px 14px;border-radius:3px;background:#2a5a9a;color:#fff;cursor:pointer;font-size:13px;">Save</button>
-  <span style="color:#555;font-size:11px;white-space:nowrap;">stored locally · only sent to api.github.com</span>
+  <button id="disk-save-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">💾 Save data</button>
 </div>
 
 <div id="main">
@@ -1439,18 +1430,7 @@ document.getElementById('plan-cancel-measure').addEventListener('click', () => {
   document.getElementById('new-measure-btn').classList.remove('active');
 });
 
-// ─── GitHub Cloud Sync ────────────────────────────────────────────────────────
-const GH_REPO = 'mloreti/g-track';
-const GH_FILE = 'data.json';
-let ghToken = localStorage.getItem('gh_token') || '';
-
-function b64enc(str) {
-  return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
-}
-function b64dec(str) {
-  return new TextDecoder().decode(new Uint8Array([...atob(str.replace(/\n/g,''))].map(c => c.charCodeAt(0))));
-}
-
+// ─── Data Persistence ─────────────────────────────────────────────────────────
 function saveHoleConfig() {
   localStorage.setItem('stonebridge_config', JSON.stringify(holeConfig));
 }
@@ -1465,7 +1445,7 @@ function diskPayload() {
   }, null, 2);
 }
 
-function applyCloudData(data) {
+function applyData(data) {
   if (data.planning)       { planningData = data.planning; localStorage.setItem('stonebridge_planning', JSON.stringify(planningData)); }
   if (data.groupHidden)    { planningGroupHidden = data.groupHidden; localStorage.setItem('stonebridge_group_hidden', JSON.stringify(planningGroupHidden)); }
   if (data.groupCollapsed) { planningGroupCollapsed = data.groupCollapsed; localStorage.setItem('stonebridge_group_collapsed', JSON.stringify(planningGroupCollapsed)); }
@@ -1473,99 +1453,31 @@ function applyCloudData(data) {
   if (data.roundData)      { roundData = data.roundData; localStorage.setItem('stonebridge_round', JSON.stringify(roundData)); }
 }
 
-async function ghRead() {
-  const res = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`, {
-    headers: { Authorization: `Bearer ${ghToken}`, Accept: 'application/vnd.github+json' }
-  });
-  if (res.status === 404) return { data: null, sha: null };
-  if (!res.ok) throw new Error(`GitHub ${res.status}`);
-  const j = await res.json();
-  return { data: JSON.parse(b64dec(j.content)), sha: j.sha };
-}
-
-async function ghWrite(sha) {
-  const body = {
-    message: `Update golf data ${new Date().toISOString().slice(0, 10)}`,
-    content: b64enc(diskPayload()),
-  };
-  if (sha) body.sha = sha;
-  const res = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${ghToken}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.message || res.status); }
-}
-
-function cloudBtnState(id, text, color, disabled) {
-  const btn = document.getElementById(id);
-  btn.textContent = text;
-  btn.style.color = color;
-  btn.disabled = disabled;
-}
-
-function resetCloudBtns() {
-  const col = ghToken ? '#6cf' : '#aaa';
-  cloudBtnState('cloud-push-btn', '☁ Push', col, false);
-  cloudBtnState('cloud-pull-btn', '☁ Pull', col, false);
-}
-
-document.getElementById('cloud-push-btn').addEventListener('click', async () => {
-  if (!ghToken) { toggleTokenBar(true); return; }
-  cloudBtnState('cloud-push-btn', '↑ Pushing…', '#aaa', true);
+// On load, fetch data.json from same directory (works on GitHub Pages).
+// Falls back to localStorage silently if not available (local file://).
+async function loadFromRepo() {
   try {
-    const { sha } = await ghRead();
-    await ghWrite(sha);
-    cloudBtnState('cloud-push-btn', '✓ Pushed', '#6f6', false);
-  } catch (err) {
-    cloudBtnState('cloud-push-btn', '✗ ' + err.message, '#f66', false);
-  }
-  setTimeout(resetCloudBtns, 2000);
-});
-
-document.getElementById('cloud-pull-btn').addEventListener('click', async () => {
-  if (!ghToken) { toggleTokenBar(true); return; }
-  cloudBtnState('cloud-pull-btn', '↓ Pulling…', '#aaa', true);
-  try {
-    const { data } = await ghRead();
-    if (!data) { cloudBtnState('cloud-pull-btn', '✗ No data yet', '#f66', false); setTimeout(resetCloudBtns, 2000); return; }
-    applyCloudData(data);
-    loadHole(currentHole);
-    cloudBtnState('cloud-pull-btn', '✓ Pulled', '#6f6', false);
-  } catch (err) {
-    cloudBtnState('cloud-pull-btn', '✗ ' + err.message, '#f66', false);
-  }
-  setTimeout(resetCloudBtns, 2000);
-});
-
-function toggleTokenBar(forceOpen) {
-  const bar = document.getElementById('token-bar');
-  const show = forceOpen !== undefined ? forceOpen : bar.style.display !== 'flex';
-  bar.style.display = show ? 'flex' : 'none';
-  if (show) document.getElementById('token-input').focus();
+    const res = await fetch('./data.json');
+    if (!res.ok) return;
+    const data = await res.json();
+    applyData(data);
+  } catch (e) { /* not available locally — localStorage is used instead */ }
 }
 
-document.getElementById('cloud-token-btn').addEventListener('click', () => toggleTokenBar());
-
-document.getElementById('token-save-btn').addEventListener('click', () => {
-  ghToken = document.getElementById('token-input').value.trim();
-  localStorage.setItem('gh_token', ghToken);
-  toggleTokenBar(false);
-  resetCloudBtns();
+document.getElementById('disk-save-btn').addEventListener('click', () => {
+  const blob = new Blob([diskPayload()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'data.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  const btn = document.getElementById('disk-save-btn');
+  btn.textContent = '✓ Saved';
+  setTimeout(() => { btn.textContent = '💾 Save data'; }, 1400);
 });
-
-document.getElementById('token-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('token-save-btn').click();
-});
-
-// Restore token input value and style push/pull if token exists
-if (ghToken) {
-  document.getElementById('token-input').value = ghToken;
-  resetCloudBtns();
-}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-loadHole(0);
+loadFromRepo().then(() => loadHole(0));
 </script>
 </body>
 </html>
