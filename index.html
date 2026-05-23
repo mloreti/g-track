@@ -48,8 +48,6 @@
   .field { margin-bottom: 8px; }
   .field label { font-size: 12px; color: #aaa; display: block; margin-bottom: 3px; }
   .field-row { display: flex; gap: 6px; align-items: center; }
-  .dist-display { font-size: 18px; font-weight: 600; color: #4af; min-width: 70px; }
-  .dist-display.unset { color: #555; font-size: 14px; }
 
   /* Lie buttons */
   .lie-group { display: flex; gap: 4px; }
@@ -60,17 +58,6 @@
 
   /* Club select */
   select { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 3px; font-size: 13px; width: 100%; }
-
-  /* Putts */
-  .putt-group { display: flex; gap: 4px; }
-  .putt-btn { border: 1px solid #444; background: #2a2a2a; color: #aaa; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 13px; flex: 1; text-align: center; }
-  .putt-btn.selected { background: #1a4a6a; border-color: #2a6a9a; color: #fff; }
-
-  /* GIR */
-  .gir-group { display: flex; gap: 4px; }
-  .gir-btn { border: 1px solid #444; background: #2a2a2a; color: #aaa; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; flex: 1; text-align: center; }
-  .gir-btn.selected.yes { background: #1a4a1a; border-color: #2a7a2a; color: #fff; }
-  .gir-btn.selected.no  { background: #4a1a1a; border-color: #7a2a2a; color: #fff; }
 
   /* Score */
   .score-input { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 4px 8px; border-radius: 3px; font-size: 18px; font-weight: 600; width: 60px; text-align: center; }
@@ -120,6 +107,15 @@
   .plan-move { background:none; border:none; color:#444; cursor:pointer; font-size:11px; padding:0 2px; line-height:1; }
   .plan-move:hover:not([disabled]) { color:#ccc; }
   .plan-move[disabled] { color:#2a2a2a; cursor:default; }
+.shot-item { padding: 8px 0; border-bottom: 1px solid #2a2a2a; }
+.shot-item:last-child { border-bottom: none; }
+.shot-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.shot-num { font-size: 11px; font-weight: 700; color: #777; min-width: 22px; }
+.shot-yds { color: #4af; font-weight: 600; font-size: 14px; min-width: 48px; }
+.shot-pin { color: #777; font-size: 11px; flex: 1; }
+.shot-del { background: none; border: none; color: #444; cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.shot-del:hover { color: #c44; }
+.putt-ft { color: #6cf; font-weight: 600; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -151,12 +147,9 @@
   <div id="map-container" style="flex:1; display:flex; flex-direction:column; position:relative;">
     <div id="marker-toolbar">
       <span id="shot-marker-btns">
-        <button class="marker-btn mb-tee"   data-marker="tee">&#x26F3; Tee</button>
-        <button class="marker-btn mb-drive" data-marker="drive">&#x1F4CD; Drive</button>
-        <button class="marker-btn mb-app1"  data-marker="app1">&#x1F4CD; Approach 1</button>
-        <button class="marker-btn mb-app2"  data-marker="app2">&#x1F4CD; Approach 2</button>
-        <button class="marker-btn mb-pin"   data-marker="pin">&#x26F3; Pin</button>
-        <button class="marker-btn mb-putt"  data-marker="putt">&#x1F535; First Putt</button>
+        <button id="add-shot-btn" class="marker-btn mb-drive">+ Shot</button>
+        <button id="on-green-btn" class="marker-btn mb-pin">On Green</button>
+        <button id="mark-pin-btn" class="marker-btn mb-setup">📌 Pin</button>
       </span>
       <button id="setup-toggle" class="marker-btn mb-setup" style="margin-left:auto;">⚙ Setup</button>
     </div>
@@ -179,9 +172,8 @@
   </div>
 
   <div id="sidebar">
-    <!-- Score & Penalties -->
     <div class="section">
-      <div class="section-title">Result</div>
+      <div class="section-title">Hole</div>
       <div class="field-row">
         <div class="field" style="flex:1;">
           <label>Score</label>
@@ -193,84 +185,11 @@
         </div>
       </div>
     </div>
-
-    <!-- Tee Shot -->
-    <div class="section">
-      <div class="section-title">Tee Shot</div>
-      <div class="field">
-        <label>Club</label>
-        <select id="tee-club"></select>
-      </div>
-      <div class="field">
-        <label>Distance</label>
-        <div class="dist-display unset" id="drive-dist">— yds</div>
-      </div>
-      <div class="field">
-        <label>Lie</label>
-        <div class="lie-group">
-          <button class="lie-btn" data-lie="FW" data-group="tee-lie">FW</button>
-          <button class="lie-btn" data-lie="Rough" data-group="tee-lie">Rough</button>
-          <button class="lie-btn ob" data-lie="OB" data-group="tee-lie">OB</button>
-        </div>
-      </div>
+    <div class="section" id="shot-list-section">
+      <div class="section-title">Shots <span id="shot-count" style="color:#555;font-size:10px;font-weight:400;"></span></div>
+      <div id="shot-list"></div>
     </div>
-
-    <!-- Approach 1 -->
-    <div class="section" id="app1-section">
-      <div class="section-title">Approach 1</div>
-      <div class="field">
-        <label>Club</label>
-        <select id="app1-club"></select>
-      </div>
-      <div class="field">
-        <label>Distance to pin</label>
-        <div class="dist-display unset" id="app1-dist">— yds</div>
-      </div>
-    </div>
-
-    <!-- Approach 2 (par 5 only) -->
-    <div class="section" id="app2-section">
-      <div class="section-title">Approach 2</div>
-      <div class="field">
-        <label>Club</label>
-        <select id="app2-club"></select>
-      </div>
-      <div class="field">
-        <label>Distance to pin</label>
-        <div class="dist-display unset" id="app2-dist">— yds</div>
-      </div>
-    </div>
-
-    <!-- GIR -->
-    <div class="section">
-      <div class="section-title">Green in Regulation</div>
-      <div class="gir-group">
-        <button class="gir-btn yes" data-gir="Y">&#x2713; Yes</button>
-        <button class="gir-btn no"  data-gir="N">&#x2717; No</button>
-      </div>
-    </div>
-
-    <!-- Putting -->
-    <div class="section">
-      <div class="section-title">Putting</div>
-      <div class="field">
-        <label>First putt distance</label>
-        <div class="dist-display unset" id="putt-dist">— ft</div>
-      </div>
-      <div class="field">
-        <label>Total putts</label>
-        <div class="putt-group">
-          <button class="putt-btn" data-putts="1">1</button>
-          <button class="putt-btn" data-putts="2">2</button>
-          <button class="putt-btn" data-putts="3">3</button>
-          <button class="putt-btn" data-putts="4">4+</button>
-        </div>
-      </div>
-    </div>
-
     <button id="save-btn">Save Hole &amp; Continue &#8594;</button>
-
-    <!-- Round log -->
     <div id="log">
       <h3>Round Log</h3>
       <div id="log-entries"></div>
@@ -337,15 +256,21 @@ const COURSE = {
 const CLUBS = ['Dr','3w','7w','5i','6i','7i','8i','9i','PW','GW','SW','LW'];
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let currentHole = 0; // index
-let activeMarker = null;
-let roundData = JSON.parse(localStorage.getItem('stonebridge_round') || '{}'); // keyed by hole index
+let currentHole = 0;
+let roundData = JSON.parse(localStorage.getItem('stonebridge_round') || '{}');
 let holeConfig = JSON.parse(localStorage.getItem('stonebridge_config') || '{}');
 let setupMode = null; // 'setup-tee' | 'setup-green' | null
-let mapHasBeenPositioned = false; // true after first valid map position
+let mapHasBeenPositioned = false;
 
-// Leaflet markers on map
-let mapMarkers = {};
+// Shot entry state
+let holeShots = [];        // [{lat,lng,club,lie}]
+let holePuttStart = null;  // index into holeShots where putting begins
+let holePin = null;        // {lat,lng} | null
+let shotMapMarkers = [];   // Leaflet markers parallel to holeShots
+let pinMapMarker = null;
+let activeShotMode = null; // 'shot' | 'pin' | null
+
+let mapMarkers_setup = {};
 
 // ─── Map Init ────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: true, rotate: true, bearing: 0, rotateControl: false });
@@ -378,15 +303,6 @@ const ICONS = {
   'setup-green': makeIcon('#555','SG'),
 };
 
-// ─── Club Selects ────────────────────────────────────────────────────────────
-function populateClubs() {
-  ['tee-club','app1-club','app2-club'].forEach(id => {
-    const sel = document.getElementById(id);
-    sel.innerHTML = '<option value="">— select —</option>' +
-      CLUBS.map(c => `<option value="${c}">${c}</option>`).join('');
-  });
-}
-populateClubs();
 
 // ─── Haversine distance ───────────────────────────────────────────────────
 function haversine(a, b) {
@@ -513,153 +429,95 @@ function drawHoleArrow(tee, green) {
 
 // ─── Load Hole ────────────────────────────────────────────────────────────────
 function loadHole(idx) {
-  // Discard any unsaved trim changes for the current hole
   holeConfig = JSON.parse(localStorage.getItem('stonebridge_config') || '{}');
   currentHole = idx;
   const h = COURSE.holes[idx];
   document.getElementById('hole-label').textContent =
     `Hole ${h.hole} — Par ${h.par} — ${h.yards} yds — SI ${h.si}`;
 
-  // Show/hide approach 2 for par 5
-  document.getElementById('app2-section').style.display = h.par === 5 ? '' : 'none';
-
-  // Show/hide approach 1 toolbar button label
-  const app1Btn = document.querySelector('[data-marker="app1"]');
-  app1Btn.textContent = h.par === 3 ? '📍 Approach' : '📍 Approach 1';
-
   // Clear map markers
-  Object.values(mapMarkers).forEach(m => map.removeLayer(m));
-  mapMarkers = {};
+  shotMapMarkers.forEach(m => map.removeLayer(m));
+  shotMapMarkers = [];
+  if (pinMapMarker) { map.removeLayer(pinMapMarker); pinMapMarker = null; }
 
-  // Restore saved data for this hole
+  // Restore saved data
   const saved = roundData[idx] || {};
-  document.getElementById('score').value    = saved.score    || '';
+  holeShots = (saved.shots || []).map(s => ({ ...s }));
+  holePuttStart = (saved.puttStart !== undefined && saved.puttStart !== null) ? saved.puttStart : null;
+  holePin = saved.pin ? { ...saved.pin } : null;
+  document.getElementById('score').value = saved.score || '';
   document.getElementById('penalties').value = saved.penalties || '0';
-  document.getElementById('tee-club').value  = saved.teeClub  || '';
-  document.getElementById('app1-club').value = saved.app1Club || '';
-  document.getElementById('app2-club').value = saved.app2Club || '';
 
-  setLie('tee-lie',  saved.lie   || null);
-  setGir(saved.gir   || null);
-  setPutts(saved.putts || null);
-
-  updateDists(saved);
-
-  // Restore placed markers
-  ['tee','drive','app1','app2','pin','putt'].forEach(key => {
-    if (saved[key]) placeMarker(key, L.latLng(saved[key].lat, saved[key].lng), false);
+  // Restore shot markers
+  holeShots.forEach((s, i) => {
+    const isPutt = holePuttStart !== null && i >= holePuttStart;
+    const label = i === 0 ? 'T' : (isPutt ? `P${i - holePuttStart + 1}` : `${i}`);
+    const marker = L.marker([s.lat, s.lng], {
+      icon: makeShotIcon(label, isPutt), draggable: true
+    }).addTo(map);
+    const ci = i;
+    marker.on('dragend', () => {
+      const ll = marker.getLatLng();
+      holeShots[ci] = { ...holeShots[ci], lat: ll.lat, lng: ll.lng };
+      saveHoleData(); renderShotList();
+    });
+    shotMapMarkers.push(marker);
   });
 
-  // Center map and orient to hole direction
-  orientMap();
+  // Restore pin marker
+  if (holePin) {
+    pinMapMarker = L.marker([holePin.lat, holePin.lng], {
+      icon: makeIcon('#8a1a1a', '⛳'), draggable: true
+    }).addTo(map);
+    pinMapMarker.on('dragend', () => {
+      const ll = pinMapMarker.getLatLng();
+      holePin = { lat: ll.lat, lng: ll.lng };
+      saveHoleData(); renderShotList();
+    });
+  }
 
-  // Refresh planning layers if in plan mode
+  // Update toolbar button state
+  const addBtn = document.getElementById('add-shot-btn');
+  const greenBtn = document.getElementById('on-green-btn');
+  if (holePuttStart !== null) {
+    greenBtn.classList.add('active');
+    greenBtn.textContent = '⛳ On Green';
+    addBtn.textContent = '+ Putt';
+  } else {
+    greenBtn.classList.remove('active');
+    greenBtn.textContent = 'On Green';
+    addBtn.textContent = '+ Shot';
+  }
+
+  orientMap();
+  renderShotList();
+  exitShotMode();
+
   if (appMode === 'plan') {
     clearTempPlanLayers();
+    stopEditMeasurement();
     measuringState = null;
     document.getElementById('plan-new-form').style.display = 'none';
     drawPlanMeasurements();
   }
-
-  activeMarker = null;
-  document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('active'));
 }
 
-// ─── Place Marker ─────────────────────────────────────────────────────────────
-function placeMarker(key, latlng, save=true) {
-  if (mapMarkers[key]) map.removeLayer(mapMarkers[key]);
-  const m = L.marker(latlng, { icon: ICONS[key] || ICONS.app1, draggable: true }).addTo(map);
-  mapMarkers[key] = m;
-  m.on('dragend', () => {
-    updateMarkerData(key, m.getLatLng());
-    recalcDists();
-  });
-  if (save) {
-    updateMarkerData(key, latlng);
-    recalcDists();
-  }
-}
-
-function updateMarkerData(key, latlng) {
-  if (!roundData[currentHole]) roundData[currentHole] = {};
-  roundData[currentHole][key] = { lat: latlng.lat, lng: latlng.lng };
-}
-
-// ─── Distance Calculations ───────────────────────────────────────────────────
-function recalcDists() {
-  const d = roundData[currentHole] || {};
-  updateDists(d);
-}
-
-function updateDists(d) {
-  // Drive distance: tee → drive
-  const driveEl = document.getElementById('drive-dist');
-  if (d.tee && d.drive) {
-    const dist = metresToYards(haversine(d.tee, d.drive));
-    driveEl.textContent = `${dist} yds`;
-    driveEl.classList.remove('unset');
-  } else {
-    driveEl.textContent = '— yds'; driveEl.classList.add('unset');
-  }
-
-  // App1 dist: app1 → pin
-  const app1El = document.getElementById('app1-dist');
-  const app1Key = d.app1 || (COURSE.holes[currentHole].par === 3 ? d.tee : null);
-  if (app1Key && d.pin) {
-    const dist = metresToYards(haversine(app1Key, d.pin));
-    app1El.textContent = `${dist} yds`;
-    app1El.classList.remove('unset');
-  } else {
-    app1El.textContent = '— yds'; app1El.classList.add('unset');
-  }
-
-  // App2 dist: app2 → pin (par 5 only)
-  const app2El = document.getElementById('app2-dist');
-  if (d.app2 && d.pin) {
-    const dist = metresToYards(haversine(d.app2, d.pin));
-    app2El.textContent = `${dist} yds`;
-    app2El.classList.remove('unset');
-  } else if (app2El) {
-    app2El.textContent = '— yds'; app2El.classList.add('unset');
-  }
-
-  // Putt dist: putt → pin
-  const puttEl = document.getElementById('putt-dist');
-  if (d.putt && d.pin) {
-    const dist = metresToFeet(haversine(d.putt, d.pin));
-    puttEl.textContent = `${dist} ft`;
-    puttEl.classList.remove('unset');
-  } else {
-    puttEl.textContent = '— ft'; puttEl.classList.add('unset');
-  }
-}
 
 // ─── Map Click ────────────────────────────────────────────────────────────────
 map.on('click', function(e) {
-  // ── Planning mode click ──
   if (appMode === 'plan') {
     if (!measuringState) return;
     addMeasuringPoint(e.latlng);
     return;
   }
-
-  // ── Shot entry mode click ──
-  if (!activeMarker) return;
-
-  // Unrotate click coordinates if map is rotated
-  const latlng = e.latlng;
-
   if (setupMode) {
-    // Save to hole config
     if (!holeConfig[currentHole]) holeConfig[currentHole] = {};
     const key = setupMode === 'setup-tee' ? 'tee' : 'green';
-    holeConfig[currentHole][key] = { lat: latlng.lat, lng: latlng.lng };
+    holeConfig[currentHole][key] = { lat: e.latlng.lat, lng: e.latlng.lng };
     saveHoleConfig();
-
-    // Place a reference marker
-    if (mapMarkers[setupMode]) map.removeLayer(mapMarkers[setupMode]);
-    mapMarkers[setupMode] = L.marker(latlng, { icon: ICONS[setupMode], draggable: true }).addTo(map);
-    mapMarkers[setupMode].on('dragend', ev => {
+    if (mapMarkers_setup[setupMode]) map.removeLayer(mapMarkers_setup[setupMode]);
+    mapMarkers_setup[setupMode] = L.marker(e.latlng, { icon: ICONS[setupMode], draggable: true }).addTo(map);
+    mapMarkers_setup[setupMode].on('dragend', ev => {
       const k2 = setupMode === 'setup-tee' ? 'tee' : 'green';
       holeConfig[currentHole][k2] = { lat: ev.target.getLatLng().lat, lng: ev.target.getLatLng().lng };
       saveHoleConfig();
@@ -669,8 +527,8 @@ map.on('click', function(e) {
     orientMap();
     return;
   }
-
-  placeMarker(activeMarker, latlng);
+  if (activeShotMode === 'shot') { addShotAtLatLng(e.latlng); return; }
+  if (activeShotMode === 'pin')  { placePinAtLatLng(e.latlng); return; }
 });
 
 // ─── Setup Mode Toggle ────────────────────────────────────────────────────────
@@ -683,7 +541,6 @@ document.getElementById('setup-toggle').addEventListener('click', () => {
   if (isOpen) {
     // Exiting setup — clear marker mode and hide direction line
     setupMode = null;
-    activeMarker = null;
     document.getElementById('setup-notice').style.display = 'none';
     document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('active'));
     removeHoleArrow();
@@ -694,13 +551,12 @@ document.getElementById('setup-toggle').addEventListener('click', () => {
   }
 });
 
-// ─── Marker Toolbar ───────────────────────────────────────────────────────────
+// ─── Setup Bar Marker Buttons ─────────────────────────────────────────────────
 document.querySelectorAll('.marker-btn[data-marker]').forEach(btn => {
   btn.addEventListener('click', () => {
     const marker = btn.dataset.marker;
     const isSetup = marker.startsWith('setup-');
     setupMode = isSetup ? marker : null;
-    activeMarker = marker;
 
     document.querySelectorAll('.marker-btn[data-marker]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -715,83 +571,33 @@ document.querySelectorAll('.marker-btn[data-marker]').forEach(btn => {
   });
 });
 
-// ─── Lie Buttons ─────────────────────────────────────────────────────────────
-function setLie(group, value) {
-  document.querySelectorAll(`[data-group="${group}"]`).forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.lie === value);
-  });
-}
-
-document.querySelectorAll('.lie-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const group = btn.dataset.group;
-    setLie(group, btn.dataset.lie);
-    if (!roundData[currentHole]) roundData[currentHole] = {};
-    roundData[currentHole].lie = btn.dataset.lie;
-  });
+// ─── Shot Entry Toolbar ───────────────────────────────────────────────────────
+document.getElementById('add-shot-btn').addEventListener('click', () => {
+  activeShotMode === 'shot' ? exitShotMode() : enterAddShotMode();
 });
-
-// ─── GIR ─────────────────────────────────────────────────────────────────────
-function setGir(value) {
-  document.querySelectorAll('.gir-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.gir === value);
-  });
-}
-
-document.querySelectorAll('.gir-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    setGir(btn.dataset.gir);
-    if (!roundData[currentHole]) roundData[currentHole] = {};
-    roundData[currentHole].gir = btn.dataset.gir;
-  });
+document.getElementById('on-green-btn').addEventListener('click', () => {
+  if (holePuttStart !== null) return;
+  holePuttStart = holeShots.length;
+  document.getElementById('on-green-btn').classList.add('active');
+  document.getElementById('on-green-btn').textContent = '⛳ On Green';
+  document.getElementById('add-shot-btn').textContent = '+ Putt';
+  saveHoleData(); renderShotList();
 });
-
-// ─── Putts ────────────────────────────────────────────────────────────────────
-function setPutts(value) {
-  document.querySelectorAll('.putt-btn').forEach(btn => {
-    btn.classList.toggle('selected', btn.dataset.putts === String(value));
-  });
-}
-
-document.querySelectorAll('.putt-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    setPutts(btn.dataset.putts);
-    if (!roundData[currentHole]) roundData[currentHole] = {};
-    roundData[currentHole].putts = btn.dataset.putts;
-  });
-});
-
-// ─── Score / Penalties live save ─────────────────────────────────────────────
-['score','penalties'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    if (!roundData[currentHole]) roundData[currentHole] = {};
-    roundData[currentHole][id] = document.getElementById(id).value;
-  });
-});
-
-['tee-club','app1-club','app2-club'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    if (!roundData[currentHole]) roundData[currentHole] = {};
-    const key = id === 'tee-club' ? 'teeClub' : id === 'app1-club' ? 'app1Club' : 'app2Club';
-    roundData[currentHole][key] = document.getElementById(id).value;
-  });
+document.getElementById('mark-pin-btn').addEventListener('click', () => {
+  activeShotMode === 'pin' ? exitShotMode() : enterPinMode();
 });
 
 // ─── Save Hole ────────────────────────────────────────────────────────────────
 document.getElementById('save-btn').addEventListener('click', () => {
   if (!roundData[currentHole]) roundData[currentHole] = {};
-  const d = roundData[currentHole];
-  d.score = document.getElementById('score').value;
-  d.penalties = document.getElementById('penalties').value;
-  d.teeClub  = document.getElementById('tee-club').value;
-  d.app1Club = document.getElementById('app1-club').value;
-  d.app2Club = document.getElementById('app2-club').value;
-  d.saved = true;
-  localStorage.setItem('stonebridge_round', JSON.stringify(roundData));
-
+  roundData[currentHole].saved = true;
+  saveHoleData();
   updateLog();
-
   if (currentHole < 17) loadHole(currentHole + 1);
+});
+
+['score','penalties'].forEach(id => {
+  document.getElementById(id).addEventListener('change', saveHoleData);
 });
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -802,7 +608,7 @@ document.getElementById('next-hole').addEventListener('click', () => {
   loadHole((currentHole + 1) % 18);
 });
 
-// ─── Log ──────────────────────────────────────────────────────────────────────
+// ─── Log ─────────────────────────────────────────────────────────────────────
 function updateLog() {
   const container = document.getElementById('log-entries');
   container.innerHTML = '';
@@ -811,38 +617,194 @@ function updateLog() {
     if (!d || !d.saved) return;
     const div = document.createElement('div');
     div.className = 'log-entry';
-    const vsPar = d.score ? parseInt(d.score) - h.par : '?';
+    const score = parseInt(d.score) || (d.shots ? d.shots.length : 0);
+    const vsPar = score - h.par;
     const vsParStr = vsPar === 0 ? 'E' : vsPar > 0 ? `+${vsPar}` : `${vsPar}`;
-    div.innerHTML = `<span class="log-hole">H${h.hole}</span> <span class="log-score">${d.score || '?'} (${vsParStr})</span> · ${d.teeClub || '—'} · GIR:${d.gir || '?'} · ${d.putts || '?'}p`;
+    const putts = (d.puttStart != null && d.shots) ? d.shots.length - d.puttStart : '?';
+    div.innerHTML = `<span class="log-hole">H${h.hole}</span> <span class="log-score">${score} (${vsParStr})</span> · ${putts}p`;
     container.appendChild(div);
   });
 }
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
 document.getElementById('export-btn').addEventListener('click', () => {
-  const today = new Date().toISOString().slice(0,10);
-  const header = 'date,course,hole,par,si,score,tee_club,drive_yds,lie,app1_club,app1_yds,app2_club,app2_yds,gir,putt1_ft,putts,penalties';
-  const rows = COURSE.holes.map((h, idx) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const header = 'date,course,hole,par,si,shot,type,lie,club,carry_yds,to_pin_yds,putt_ft,score,penalties';
+  const rows = [];
+  COURSE.holes.forEach((h, idx) => {
     const d = roundData[idx] || {};
-    const driveYds = (d.tee && d.drive) ? metresToYards(haversine(d.tee, d.drive)) : '';
-    const app1Src  = d.app1 || (h.par === 3 ? d.tee : null);
-    const app1Yds  = (app1Src && d.pin) ? metresToYards(haversine(app1Src, d.pin)) : '';
-    const app2Yds  = (d.app2 && d.pin)  ? metresToYards(haversine(d.app2, d.pin)) : '';
-    const puttFt   = (d.putt && d.pin)  ? metresToFeet(haversine(d.putt, d.pin)) : '';
-    return [today, COURSE.name, h.hole, h.par, h.si,
-            d.score||'', d.teeClub||'', driveYds, d.lie||'',
-            d.app1Club||'', app1Yds, d.app2Club||'', app2Yds,
-            d.gir||'', puttFt, d.putts||'', d.penalties||'0'
-           ].join(',');
+    const shots = d.shots || [];
+    const ps = (d.puttStart != null) ? d.puttStart : shots.length;
+    const pin = d.pin;
+    shots.forEach((s, si) => {
+      const isPutt = si >= ps;
+      const type = si === 0 ? 'tee' : (isPutt ? 'putt' : 'approach');
+      const carry = si > 0 ? metresToYards(haversine(shots[si - 1], s)) : '';
+      const toPin = (!isPutt && pin) ? metresToYards(haversine(s, pin)) : '';
+      const puttFt = (isPutt && pin) ? metresToFeet(haversine(s, pin)) : '';
+      rows.push([today, COURSE.name, h.hole, h.par, h.si,
+        isPutt ? `P${si - ps + 1}` : si + 1,
+        type, s.lie || '', s.club || '',
+        carry, toPin, puttFt,
+        d.score || '', d.penalties || '0'].join(','));
+    });
+    if (!shots.length && d.score) {
+      rows.push([today, COURSE.name, h.hole, h.par, h.si, '', '', '', '', '', '', '', d.score, d.penalties || '0'].join(','));
+    }
   });
   const csv = [header, ...rows].join('\n');
-
-  const blob = new Blob([csv], {type:'text/csv'});
+  const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `stonebridge_${today}.csv`;
   a.click();
+  URL.revokeObjectURL(a.href);
 });
+
+// ─── Shot Entry Functions ─────────────────────────────────────────────────────
+function makeShotIcon(label, isPutt) {
+  const color = label === 'T' ? '#1a6b1a' : (isPutt ? '#1a6a6a' : '#4a4a9a');
+  return makeIcon(color, label);
+}
+
+function enterAddShotMode() {
+  activeShotMode = 'shot';
+  document.getElementById('add-shot-btn').classList.add('active');
+  document.getElementById('mark-pin-btn').classList.remove('active');
+}
+function enterPinMode() {
+  activeShotMode = 'pin';
+  document.getElementById('mark-pin-btn').classList.add('active');
+  document.getElementById('add-shot-btn').classList.remove('active');
+}
+function exitShotMode() {
+  activeShotMode = null;
+  document.getElementById('add-shot-btn').classList.remove('active');
+  document.getElementById('mark-pin-btn').classList.remove('active');
+}
+
+function addShotAtLatLng(latlng) {
+  const isPutt = holePuttStart !== null;
+  const lie = holeShots.length === 0 ? 'tee' : (isPutt ? 'green' : null);
+  const idx = holeShots.length;
+  const puttNum = isPutt ? idx - holePuttStart + 1 : null;
+  const label = idx === 0 ? 'T' : (isPutt ? `P${puttNum}` : `${idx}`);
+  holeShots.push({ lat: latlng.lat, lng: latlng.lng, club: null, lie });
+  const marker = L.marker(latlng, { icon: makeShotIcon(label, isPutt), draggable: true }).addTo(map);
+  const ci = idx;
+  marker.on('dragend', () => {
+    const ll = marker.getLatLng();
+    holeShots[ci] = { ...holeShots[ci], lat: ll.lat, lng: ll.lng };
+    saveHoleData(); renderShotList();
+  });
+  shotMapMarkers.push(marker);
+  saveHoleData(); renderShotList(); exitShotMode();
+}
+
+function placePinAtLatLng(latlng) {
+  holePin = { lat: latlng.lat, lng: latlng.lng };
+  if (pinMapMarker) map.removeLayer(pinMapMarker);
+  pinMapMarker = L.marker(latlng, { icon: makeIcon('#8a1a1a', '⛳'), draggable: true }).addTo(map);
+  pinMapMarker.on('dragend', () => {
+    const ll = pinMapMarker.getLatLng();
+    holePin = { lat: ll.lat, lng: ll.lng };
+    saveHoleData(); renderShotList();
+  });
+  saveHoleData(); renderShotList(); exitShotMode();
+}
+
+function saveHoleData() {
+  if (!roundData[currentHole]) roundData[currentHole] = {};
+  Object.assign(roundData[currentHole], {
+    shots: holeShots,
+    puttStart: holePuttStart,
+    pin: holePin,
+    score: document.getElementById('score').value,
+    penalties: document.getElementById('penalties').value,
+  });
+  localStorage.setItem('stonebridge_round', JSON.stringify(roundData));
+}
+
+function renderShotList() {
+  const list = document.getElementById('shot-list');
+  const countEl = document.getElementById('shot-count');
+  list.innerHTML = '';
+  if (holeShots.length === 0) {
+    list.innerHTML = '<div style="color:#555;font-size:12px;padding:8px 0;">Press + Shot then tap the map</div>';
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  holeShots.forEach((s, i) => {
+    const isPutt = holePuttStart !== null && i >= holePuttStart;
+    const puttNum = isPutt ? i - holePuttStart + 1 : null;
+    const label = i === 0 ? 'T' : (isPutt ? `P${puttNum}` : `${i}`);
+    let carryYds = null, toPinYds = null, toPinFt = null;
+    if (i > 0) carryYds = metresToYards(haversine(holeShots[i - 1], s));
+    if (holePin) {
+      if (isPutt) toPinFt = metresToFeet(haversine(s, holePin));
+      else toPinYds = metresToYards(haversine(s, holePin));
+    }
+    const div = document.createElement('div');
+    div.className = 'shot-item';
+    div.dataset.idx = i;
+    if (isPutt) {
+      div.innerHTML = `
+        <div class="shot-row">
+          <span class="shot-num">${label}</span>
+          <span class="putt-ft">${toPinFt !== null ? toPinFt + 'ft' : '—'}</span>
+          <span class="shot-pin">to pin</span>
+          <button class="shot-del" data-idx="${i}">×</button>
+        </div>`;
+    } else {
+      const LIES = i === 0 ? [] : ['FW','Rough','Bunker','OB'];
+      div.innerHTML = `
+        <div class="shot-row">
+          <span class="shot-num">${label}</span>
+          <span class="shot-yds">${carryYds !== null ? carryYds + 'y' : '—'}</span>
+          <span class="shot-pin">${toPinYds !== null ? toPinYds + 'y to pin' : ''}</span>
+          <button class="shot-del" data-idx="${i}">×</button>
+        </div>
+        ${LIES.length ? `<div class="lie-group" style="margin-bottom:5px;">
+          ${LIES.map(l => `<button class="lie-btn shot-lie${s.lie === l ? ' selected' + (l==='OB'?' ob':'') : ''}" data-idx="${i}" data-lie="${l}">${l}</button>`).join('')}
+        </div>` : ''}
+        <select class="shot-club" data-idx="${i}" style="width:100%;margin-bottom:2px;">
+          <option value="">— club —</option>
+          ${CLUBS.map(c => `<option value="${c}"${s.club===c?' selected':''}>${c}</option>`).join('')}
+        </select>`;
+    }
+    list.appendChild(div);
+  });
+  list.querySelectorAll('.shot-lie').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      holeShots[idx].lie = btn.dataset.lie;
+      saveHoleData(); renderShotList();
+    });
+  });
+  list.querySelectorAll('.shot-club').forEach(sel => {
+    sel.addEventListener('change', () => {
+      holeShots[parseInt(sel.dataset.idx)].club = sel.value || null;
+      saveHoleData();
+    });
+  });
+  list.querySelectorAll('.shot-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      if (shotMapMarkers[idx]) map.removeLayer(shotMapMarkers[idx]);
+      shotMapMarkers.splice(idx, 1);
+      holeShots.splice(idx, 1);
+      if (holePuttStart !== null) {
+        if (idx < holePuttStart) holePuttStart--;
+        if (holePuttStart >= holeShots.length || holePuttStart < 0) holePuttStart = null;
+      }
+      saveHoleData(); renderShotList();
+    });
+  });
+  if (countEl) {
+    const putts = holePuttStart !== null ? holeShots.length - holePuttStart : 0;
+    countEl.textContent = `${holeShots.length} shots · ${putts} putts`;
+  }
+}
 
 // ─── Planning Mode ────────────────────────────────────────────────────────────
 let appMode = 'shot';
