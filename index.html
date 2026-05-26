@@ -12,15 +12,8 @@
     <!-- Full-screen map -->
     <div id="map"></div>
 
-    <!-- Floating entry toolbar (top-left over map) -->
-    <div id="toolbar">
-      <span id="guidance-label"></span>
-      <button class="tb-btn" id="btn-add-shot">+ Shot</button>
-      <button class="tb-btn" id="btn-on-green">On Green</button>
-      <button class="tb-btn" id="btn-add-putt">+ Putt</button>
-      <button class="tb-btn" id="btn-place-pin">📌 Pin</button>
-      <button class="tb-btn" id="btn-undo">↩ Undo</button>
-    </div>
+    <!-- Floating guidance label (informational only) -->
+    <span id="guidance-label"></span>
 
     <!-- Bottom info bar -->
     <div id="bottom-bar">
@@ -52,7 +45,11 @@
     <div id="pbp-panel" class="open">
       <div id="pbp-header">
         <span>Play By Play</span>
-        <button id="btn-close-pbp">✕</button>
+        <div class="pbp-header-actions">
+          <button class="tb-btn" id="btn-place-pin" title="Reposition pin">📌</button>
+          <button class="tb-btn" id="btn-undo" title="Undo last">↩</button>
+          <button id="btn-close-pbp">✕</button>
+        </div>
       </div>
 
       <div id="score-row">

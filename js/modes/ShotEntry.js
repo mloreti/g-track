@@ -27,9 +27,8 @@ export class ShotEntry {
     this._pinMarker     = null;
     this._activeMode    = null;
     this._deregClick    = null;
-    this._arcLayers       = [];
-    this._arcLabels       = [];
-    this._pinIsFirstSetup = false;
+    this._arcLayers = [];
+    this._arcLabels = [];
 
     this._bindUI();
   }
@@ -59,24 +58,11 @@ export class ShotEntry {
     this.renderShotList();
 
     if (this.hole.shots.length === 0) {
-      this._autoPlaceTee();
-    } else {
-      this._setGuidance(null);
-    }
-  }
-
-  _autoPlaceTee() {
-    const teeLatLng = this.cfg.tee;
-    if (teeLatLng) this._placeTeeAt(teeLatLng);
-
-    // Pin must be placed each session — it changes daily
-    if (!this.hole.pin) {
-      this._pinIsFirstSetup = true;
-      this._enterMode('pin');
-      this._setGuidance('Tap to set the pin location');
+      this._enterMode('tee');
+    } else if (this.phase === 'putting') {
+      this._enterMode('putt');
     } else {
       this._enterMode('shot');
-      this._setGuidance('Tap where your tee shot landed');
     }
   }
 
@@ -94,6 +80,13 @@ export class ShotEntry {
     this._markers.push({ kind: 'shot', point: marker, data: shot });
     this.renderShotList();
     this.onRoundChange();
+
+    // Tee placed — next step is pin (if not yet set) or shots
+    if (!this.hole.pin) {
+      this._enterMode('pin');
+    } else {
+      this._enterMode('shot');
+    }
   }
 
   _setGuidance(text) {
@@ -109,10 +102,7 @@ export class ShotEntry {
   // ── UI binding ───────────────────────────────────────────────────────────────
 
   _bindUI() {
-    document.getElementById('btn-add-shot').addEventListener('click', () => this._toggleMode('shot'));
-    document.getElementById('btn-on-green').addEventListener('click', () => this._enterGreen());
-    document.getElementById('btn-add-putt').addEventListener('click', () => this._toggleMode('putt'));
-    document.getElementById('btn-place-pin').addEventListener('click', () => this._toggleMode('pin'));
+    document.getElementById('btn-place-pin').addEventListener('click', () => this._enterMode('pin'));
     document.getElementById('btn-undo').addEventListener('click', () => this._undo());
     document.getElementById('btn-prev').addEventListener('click', () => this._navHole(-1));
     document.getElementById('btn-next').addEventListener('click', () => this._navHole(+1));
@@ -137,27 +127,21 @@ export class ShotEntry {
 
   // ── Mode management ──────────────────────────────────────────────────────────
 
-  _toggleMode(mode) {
-    if (this._activeMode === mode) {
-      this._exitMode();
-    } else {
-      this._enterMode(mode);
-    }
-  }
-
   _enterMode(mode) {
     this._exitMode();
     this._activeMode = mode;
     this._highlightBtn(mode, true);
 
     const hints = {
-      shot: 'Tap map — where did the ball land?',
-      putt: 'Tap map — where did the putt start?',
-      pin:  'Tap map — place the pin',
+      tee:  'Tap to place your tee',
+      pin:  'Tap to set the pin location',
+      shot: 'Tap where each shot lands',
+      putt: 'Tap where each putt starts',
     };
     this._setGuidance(hints[mode] ?? null);
 
     this._deregClick = this.mapMgr.onMapClick(latlng => {
+      if (mode === 'tee')  this._placeTeeAt(latlng);
       if (mode === 'shot') this._placeShot(latlng);
       if (mode === 'putt') this._placePutt(latlng);
       if (mode === 'pin')  this._placePin(latlng);
@@ -171,15 +155,13 @@ export class ShotEntry {
   }
 
   _highlightBtn(mode, on) {
-    const map = { shot: 'btn-add-shot', putt: 'btn-add-putt', pin: 'btn-place-pin' };
+    const map = { pin: 'btn-place-pin' };
     document.getElementById(map[mode])?.classList.toggle('active', on);
   }
 
   _enterGreen() {
     this.phase = 'putting';
-    this._exitMode();
-    document.getElementById('btn-on-green').classList.add('green');
-    this._setGuidance('Tap + Putt for each putt');
+    this._enterMode('putt');
     this.renderShotList();
     this.onRoundChange();
   }
@@ -201,8 +183,7 @@ export class ShotEntry {
     marker.addTo(this.mapMgr.map);
     this._markers.push({ kind: 'shot', point: marker, data: shot });
 
-    this._exitMode();
-    this._setGuidance(null);
+    // Stay in shot mode — next click places the next shot
     this.renderShotList();
     this.onRoundChange();
   }
@@ -225,13 +206,16 @@ export class ShotEntry {
     marker.addTo(this.mapMgr.map);
     this._markers.push({ kind: 'putt', point: marker, data: putt });
 
-    this._exitMode();
+    // Stay in putt mode — next click places the next putt
     this.renderShotList();
     this.onRoundChange();
   }
 
-  _placePin(latlng) {
+  _placePin(latlng, { silent = false } = {}) {
     this._pinMarker?.remove();
+
+    const isInitialSetup = !silent && this.hole.shots.length === 1 && !this.hole.pin;
+
     this.hole.pin = latlng;
     this.hole.putts.forEach(p => { p.pinLatLng = latlng; });
 
@@ -246,15 +230,15 @@ export class ShotEntry {
     });
     this._pinMarker.addTo(this.mapMgr.map);
 
-    this._exitMode();
-    this.renderShotList();
-    this.onRoundChange();
+    if (!silent) {
+      this.renderShotList();
+      this.onRoundChange();
 
-    // After initial pin setup, automatically enter shot mode for tee landing
-    if (this._pinIsFirstSetup) {
-      this._pinIsFirstSetup = false;
-      this._enterMode('shot');
-      this._setGuidance('Tap where your tee shot landed');
+      if (isInitialSetup) {
+        this._enterMode('shot');
+      } else {
+        this._exitMode();
+      }
     }
   }
 
@@ -265,10 +249,19 @@ export class ShotEntry {
       this.hole.removeLastPutt();
       const last = this._markers.filter(m => m.kind === 'putt').pop();
       if (last) { last.point.remove(); this._markers = this._markers.filter(m => m !== last); }
-    } else if (this.hole.shots.length > 0) {
-      this.hole.removeLastShot();
-      const last = this._markers.filter(m => m.kind === 'shot').pop();
-      if (last) { last.point.remove(); this._markers = this._markers.filter(m => m !== last); }
+      this._enterMode('putt');
+    } else {
+      if (this.phase === 'putting') this.phase = 'approach';
+      if (this.hole.shots.length > 0) {
+        this.hole.removeLastShot();
+        const last = this._markers.filter(m => m.kind === 'shot').pop();
+        if (last) { last.point.remove(); this._markers = this._markers.filter(m => m !== last); }
+      }
+      if (this.hole.shots.length === 0) {
+        this._enterMode('tee');
+      } else {
+        this._enterMode('shot');
+      }
     }
     this.renderShotList();
     this.onRoundChange();
@@ -599,7 +592,7 @@ export class ShotEntry {
     });
 
     if (this.hole.pin) {
-      this._placePin(this.hole.pin);
+      this._placePin(this.hole.pin, { silent: true });
     }
 
     this.hole.putts.forEach((putt, i) => {

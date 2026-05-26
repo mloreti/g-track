@@ -21,21 +21,14 @@ html, body { height: 100%; background: #000; color: var(--text); font-family: sy
 #app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
 #map { position: absolute; inset: 0; z-index: 0; }
 
-/* ── Floating toolbar ───────────────────────────────────────────────────────── */
+/* ── Floating guidance label (map overlay, no buttons) ──────────────────────── */
 
-#toolbar {
+#guidance-label {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 1000;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  max-width: 560px;
-}
-
-#guidance-label {
-  background: rgba(0,0,0,0.7);
+  background: rgba(0,0,0,0.72);
   color: #fff;
   font-size: 12px;
   padding: 6px 12px;
@@ -44,21 +37,23 @@ html, body { height: 100%; background: #000; color: var(--text); font-family: sy
   display: none;
   backdrop-filter: blur(4px);
   border: 1px solid var(--border);
+  pointer-events: none;
 }
 #guidance-label.visible { display: block; }
 
+/* ── Buttons (used in sidebar action row and bottom bar) ────────────────────── */
+
 .tb-btn {
-  background: rgba(20, 20, 20, 0.85);
+  background: rgba(255,255,255,0.07);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 6px 12px;
+  padding: 6px 11px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
-  backdrop-filter: blur(4px);
 }
-.tb-btn:hover  { background: rgba(60,60,60,0.9); }
+.tb-btn:hover  { background: rgba(255,255,255,0.13); }
 .tb-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .tb-btn.green  { background: var(--green);  border-color: var(--green);  color: #fff; }
 
@@ -169,6 +164,13 @@ html, body { height: 100%; background: #000; color: var(--text); font-family: sy
   padding: 2px 4px;
 }
 #btn-close-pbp:hover { color: #fff; }
+
+/* Undo + pin reposition in panel header */
+.pbp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 /* ── Score row (inside panel) ───────────────────────────────────────────────── */
 
