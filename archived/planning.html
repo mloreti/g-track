@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golf Shot Entry</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a1a; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  #header { background: #2a2a2a; border-bottom: 1px solid #3a3a3a; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  #header h1 { font-size: 14px; color: #888; letter-spacing: 1px; text-transform: uppercase; }
+  #hole-nav { display: flex; align-items: center; gap: 12px; }
+  #hole-nav button { background: #3a3a3a; border: none; color: #e0e0e0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+  #hole-nav button:hover { background: #4a4a4a; }
+  #hole-label { font-size: 16px; font-weight: 600; min-width: 220px; text-align: center; }
+  #export-btn { background: #2d6a2d; border: none; color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  #export-btn:hover { background: #3a8a3a; }
+
+  /* Main layout */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Map */
+  #map { flex: 1; }
+
+  /* Sidebar */
+  #sidebar { width: 280px; background: #222; border-left: 1px solid #333; overflow-y: auto; flex-shrink: 0; }
+
+  /* Marker toolbar */
+  #marker-toolbar { background: #2a2a2a; border-bottom: 1px solid #333; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .marker-btn { border: 2px solid transparent; border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+  .marker-btn.active { border-color: #fff; }
+  .marker-btn:hover { opacity: 0.85; }
+  .mb-tee    { background: #1a6b1a; color: #fff; }
+  .mb-drive  { background: #4a4a9a; color: #fff; }
+  .mb-app1   { background: #9a4a1a; color: #fff; }
+  .mb-app2   { background: #9a6a1a; color: #fff; }
+  .mb-pin    { background: #8a1a1a; color: #fff; }
+  .mb-putt   { background: #1a6a6a; color: #fff; }
+  .mb-setup  { background: #555; color: #fff; }
+
+  /* Sections */
+  .section { border-bottom: 1px solid #333; padding: 12px; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
+  .field { margin-bottom: 8px; }
+  .field label { font-size: 12px; color: #aaa; display: block; margin-bottom: 3px; }
+  .field-row { display: flex; gap: 6px; align-items: center; }
+
+  /* Lie buttons */
+  .lie-group { display: flex; gap: 4px; }
+  .lie-btn { border: 1px solid #444; background: #2a2a2a; color: #aaa; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+  .lie-btn.selected { background: #3a6a3a; border-color: #4a9a4a; color: #fff; }
+  .lie-btn.ob { }
+  .lie-btn.selected.ob { background: #6a1a1a; border-color: #9a2a2a; }
+
+  /* Club select */
+  select { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 3px; font-size: 13px; width: 100%; }
+
+  /* Score */
+  .score-input { background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 4px 8px; border-radius: 3px; font-size: 18px; font-weight: 600; width: 60px; text-align: center; }
+
+  /* Save button */
+  #save-btn { width: calc(100% - 24px); margin: 12px; padding: 10px; background: #2a6a2a; border: none; color: #fff; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  #save-btn:hover { background: #3a8a3a; }
+
+  /* Round log */
+  #log { padding: 12px; }
+  #log h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
+  .log-entry { font-size: 11px; color: #aaa; padding: 4px 0; border-bottom: 1px solid #2a2a2a; }
+  .log-entry .log-hole { color: #fff; font-weight: 600; }
+  .log-entry .log-score { color: #4af; }
+
+  /* Setup mode overlay */
+  #setup-notice { background: #3a2a1a; border: 1px solid #6a4a1a; color: #dda; font-size: 12px; padding: 8px 12px; margin: 8px; border-radius: 4px; display: none; }
+
+  /* Mode toggle */
+  #mode-toggle { display: flex; gap: 4px; }
+  .mode-btn { border: 1px solid #444; background: #2a2a2a; color: #aaa; padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .mode-btn.active { background: #1a4a6a; border-color: #2a6a9a; color: #fff; }
+
+  /* Planning sidebar */
+  #plan-sidebar { width: 280px; background: #222; border-left: 1px solid #333; overflow-y: auto; flex-shrink: 0; display: none; flex-direction: column; }
+  #plan-list .plan-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #2a2a2a; }
+  #plan-list .plan-dist { color: #FFD700; font-weight: 600; font-size: 14px; min-width: 52px; }
+  #plan-list .plan-label { color: #aaa; font-size: 12px; flex: 1; }
+  #plan-list .plan-del  { background: none; border: none; color: #555; cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1; }
+  #plan-list .plan-del:hover  { color: #c44; }
+  #plan-list .plan-edit { background: none; border: none; color: #555; cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
+  #plan-list .plan-edit:hover { color: #fa0; }
+  #plan-list .plan-edit.active { color: #fa0; }
+  #plan-list .plan-vis { background: none; border: none; color: #888; cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; }
+  #plan-list .plan-vis:hover { color: #fff; }
+  #plan-list .plan-vis.hidden { color: #333; }
+  #plan-new-form { background: #1a2a1a; border: 1px solid #2a5a2a; border-radius: 4px; padding: 10px; margin-top: 10px; }
+  .color-swatch { width: 18px; height: 18px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; }
+  .color-swatch.selected { border-color: #fff; }
+  .dash-btn { background: #2a2a2a; border: 1px solid #444; color: #aaa; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 13px; letter-spacing: 1px; }
+  .dash-btn.selected { background: #1a4a6a; border-color: #2a6a9a; color: #fff; }
+  .plan-group-header { display:flex; align-items:center; gap:4px; padding:5px 6px; background:#1a2a1a; border-radius:3px; margin:8px 0 1px; }
+  .plan-group-name { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#aaa; flex:1; }
+  .group-collapse-btn { background:none; border:none; color:#777; cursor:pointer; font-size:10px; padding:0; width:14px; text-align:center; line-height:1; flex-shrink:0; }
+  .group-collapse-btn:hover { color:#fff; }
+  .plan-group-count { font-size:10px; color:#555; }
+  .plan-move { background:none; border:none; color:#444; cursor:pointer; font-size:11px; padding:0 2px; line-height:1; }
+  .plan-move:hover:not([disabled]) { color:#ccc; }
+  .plan-move[disabled] { color:#2a2a2a; cursor:default; }
+.shot-item { padding: 8px 0; border-bottom: 1px solid #2a2a2a; }
+.shot-item:last-child { border-bottom: none; }
+.shot-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.shot-num { font-size: 11px; font-weight: 700; color: #777; min-width: 22px; }
+.shot-yds { color: #4af; font-weight: 600; font-size: 14px; min-width: 48px; }
+.shot-pin { color: #777; font-size: 11px; flex: 1; }
+.shot-del { background: none; border: none; color: #444; cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.shot-del:hover { color: #c44; }
+.putt-ft { color: #6cf; font-weight: 600; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="mode-toggle">
+    <button class="mode-btn active" id="mode-shot">⛳ Shot Entry</button>
+    <button class="mode-btn"        id="mode-plan">📐 Planning</button>
+  </div>
+  <div id="hole-nav">
+    <button id="prev-hole">&#8592;</button>
+    <div id="hole-label">Hole 1 — Par 4 — 341 yds</div>
+    <button id="next-hole">&#8594;</button>
+  </div>
+  <button id="export-btn">Export Round CSV</button>
+  <button id="saves-btn" style="border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;background:#3a3a3a;color:#aaa;">💾 Saves</button>
+</div>
+
+<div id="saves-bar" style="display:none;background:#1e1e1e;border-bottom:1px solid #3a3a3a;padding:10px 16px;flex-direction:column;gap:8px;">
+  <div id="saves-list"></div>
+  <div style="display:flex;gap:6px;align-items:center;border-top:1px solid #2a2a2a;padding-top:8px;margin-top:2px;">
+    <span style="color:#888;font-size:12px;white-space:nowrap;">Save as</span>
+    <input id="save-name-input" type="text" placeholder="data.json" style="flex:1;background:#2a2a2a;border:1px solid #444;color:#e0e0e0;padding:4px 8px;border-radius:3px;font-size:13px;">
+    <button id="do-save-btn" style="border:none;padding:5px 14px;border-radius:3px;background:#2a6a2a;color:#fff;cursor:pointer;font-size:13px;">💾 Download</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="map-container" style="flex:1; display:flex; flex-direction:column; position:relative;">
+    <div id="marker-toolbar">
+      <span id="shot-marker-btns">
+        <button id="add-shot-btn" class="marker-btn mb-drive">+ Shot</button>
+        <button id="on-green-btn" class="marker-btn mb-pin">On Green</button>
+        <button id="mark-pin-btn" class="marker-btn mb-setup">📌 Pin</button>
+      </span>
+      <button id="setup-toggle" class="marker-btn mb-setup" style="margin-left:auto;">⚙ Setup</button>
+    </div>
+
+    <!-- Setup controls — hidden until ⚙ Setup is toggled on -->
+    <div id="setup-bar" style="display:none;background:#1e1e1e;border-bottom:1px solid #3a3a3a;padding:8px;display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+      <button class="marker-btn mb-setup" data-marker="setup-tee">Setup Tee</button>
+      <button class="marker-btn mb-setup" data-marker="setup-green">Setup Green</button>
+      <span style="color:#555;font-size:18px;">|</span>
+      <span style="color:#aaa;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Rotate</span>
+      <button id="trim-ccw" style="background:#3a3a3a;border:none;color:#fff;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;">↺</button>
+      <span id="trim-val" style="min-width:36px;text-align:center;font-size:13px;color:#e0e0e0;">0°</span>
+      <button id="trim-cw"  style="background:#3a3a3a;border:none;color:#fff;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;">↻</button>
+      <span style="color:#555;font-size:18px;">|</span>
+      <button id="save-view-btn" class="marker-btn" style="background:#1a4a6a;">Save Default View</button>
+    </div>
+    <div id="setup-notice" style="display:none;">Setup mode: click to place the <span id="setup-type"></span> reference marker for this hole. This is saved permanently.</div>
+
+    <div id="map" style="flex:1;"></div>
+  </div>
+
+  <div id="sidebar">
+    <div class="section">
+      <div class="section-title">Hole</div>
+      <div class="field-row">
+        <div class="field" style="flex:1;">
+          <label>Score</label>
+          <input type="number" class="score-input" id="score" min="1" max="15" value="">
+        </div>
+        <div class="field" style="flex:1;">
+          <label>Penalties</label>
+          <input type="number" class="score-input" id="penalties" min="0" max="5" value="0">
+        </div>
+      </div>
+    </div>
+    <div class="section" id="shot-list-section">
+      <div class="section-title">Shots <span id="shot-count" style="color:#555;font-size:10px;font-weight:400;"></span></div>
+      <div id="shot-list"></div>
+    </div>
+    <button id="save-btn">Save Hole &amp; Continue &#8594;</button>
+    <div id="log">
+      <h3>Round Log</h3>
+      <div id="log-entries"></div>
+    </div>
+  </div>
+
+  <!-- Planning sidebar -->
+  <div id="plan-sidebar">
+    <div class="section">
+      <div class="section-title">Planning — Measurements</div>
+      <button id="new-measure-btn" class="marker-btn mb-drive" style="width:100%;justify-content:center;">📏 New Measurement</button>
+
+      <!-- Active measurement form — shown after first point placed -->
+      <div id="plan-new-form" style="display:none;">
+        <div id="plan-new-dist" style="color:#FFD700;font-size:12px;margin-bottom:6px;line-height:1.6;">Click map to place first point</div>
+        <input id="plan-label-input" type="text" placeholder="Label (e.g. Tee shot + approach)"
+          style="width:100%;background:#1a1a1a;border:1px solid #444;color:#e0e0e0;padding:5px 8px;border-radius:3px;font-size:13px;margin-bottom:6px;">
+        <input id="plan-group-input" type="text" placeholder="Group (optional)" list="group-names-list"
+          style="width:100%;background:#1a1a1a;border:1px solid #444;color:#e0e0e0;padding:5px 8px;border-radius:3px;font-size:13px;margin-bottom:8px;">
+        <datalist id="group-names-list"></datalist>
+        <div id="new-color-dash" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:6px;">
+          <button id="plan-finish-measure" style="flex:1;background:#2a6a2a;border:none;color:#fff;padding:6px;border-radius:3px;cursor:pointer;font-size:13px;opacity:.4;" disabled>Finish</button>
+          <button id="plan-cancel-measure" style="flex:1;background:#3a3a3a;border:none;color:#aaa;padding:6px;border-radius:3px;cursor:pointer;font-size:13px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div id="plan-list"><div style="color:#555;font-size:12px;padding:4px 0;">No measurements yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<script>
+// ─── Course Data ────────────────────────────────────────────────────────────
+const COURSE = {
+  name: "Stonebridge Country Club - Naples",
+  center: [26.1800, -81.7200], // approximate — adjust after setup
+  holes: [
+    { hole:1,  par:4, si:14, yards:341 },
+    { hole:2,  par:4, si:6,  yards:362 },
+    { hole:3,  par:5, si:8,  yards:475 },
+    { hole:4,  par:4, si:2,  yards:373 },
+    { hole:5,  par:3, si:18, yards:166 },
+    { hole:6,  par:4, si:12, yards:358 },
+    { hole:7,  par:4, si:10, yards:364 },
+    { hole:8,  par:3, si:16, yards:188 },
+    { hole:9,  par:4, si:4,  yards:395 },
+    { hole:10, par:4, si:5,  yards:348 },
+    { hole:11, par:3, si:13, yards:172 },
+    { hole:12, par:4, si:3,  yards:437 },
+    { hole:13, par:4, si:15, yards:326 },
+    { hole:14, par:4, si:9,  yards:411 },
+    { hole:15, par:5, si:11, yards:524 },
+    { hole:16, par:4, si:1,  yards:415 },
+    { hole:17, par:3, si:17, yards:188 },
+    { hole:18, par:5, si:7,  yards:481 },
+  ]
+};
+
+const CLUBS = ['Dr','3w','7w','5i','6i','7i','8i','9i','PW','GW','SW','LW'];
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let currentHole = 0;
+let roundData = JSON.parse(localStorage.getItem('stonebridge_round') || '{}');
+let holeConfig = JSON.parse(localStorage.getItem('stonebridge_config') || '{}');
+let setupMode = null; // 'setup-tee' | 'setup-green' | null
+let mapHasBeenPositioned = false;
+
+// Shot entry state
+let holeShots = [];        // [{lat,lng,club,lie}]
+let holePuttStart = null;  // index into holeShots where putting begins
+let holePin = null;        // {lat,lng} | null
+let shotMapMarkers = [];   // Leaflet markers parallel to holeShots
+let pinMapMarker = null;
+let activeShotMode = null; // 'shot' | 'pin' | null
+
+let mapMarkers_setup = {};
+
+// ─── Map Init ────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true, rotate: true, bearing: 0, rotateControl: false });
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Imagery &copy; Esri',
+  maxZoom: 20
+}).addTo(map);
+
+map.setView(COURSE.center, 16);
+
+// ─── Marker Icons ─────────────────────────────────────────────────────────
+function makeIcon(color, label) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:${color};width:28px;height:28px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.5)">${label}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
+  });
+}
+
+const ICONS = {
+  tee:   makeIcon('#1a6b1a','T'),
+  drive: makeIcon('#4a4a9a','D'),
+  app1:  makeIcon('#9a4a1a','A1'),
+  app2:  makeIcon('#9a6a1a','A2'),
+  pin:   makeIcon('#8a1a1a','P'),
+  putt:  makeIcon('#1a6a6a','1P'),
+  'setup-tee':   makeIcon('#555','ST'),
+  'setup-green': makeIcon('#555','SG'),
+};
+
+
+// ─── Haversine distance ───────────────────────────────────────────────────
+function haversine(a, b) {
+  const R = 6371000; // metres
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const x = Math.sin(dLat/2)**2 +
+            Math.cos(a.lat*Math.PI/180) * Math.cos(b.lat*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function metresToYards(m) { return Math.round(m * 1.09361); }
+function metresToFeet(m)  { return Math.round(m * 3.28084); }
+
+// ─── Bearing & Map Rotation ──────────────────────────────────────────────────
+function bearing(from, to) {
+  const dLng = (to.lng - from.lng) * Math.PI / 180;
+  const lat1 = from.lat * Math.PI / 180;
+  const lat2 = to.lat  * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function orientMap() {
+  const cfg = holeConfig[currentHole];
+
+  if (cfg && cfg.tee && cfg.green) {
+    const b = bearing(cfg.tee, cfg.green);
+    const trim = cfg.trim || 0;
+    const finalBearing = (b + 180 + trim + 360) % 360;
+    map.setBearing(finalBearing);
+
+    if (cfg.savedView) {
+      map.setView([cfg.savedView.lat, cfg.savedView.lng], cfg.savedView.zoom, { animate: false });
+    } else {
+      const bounds = L.latLngBounds(
+        [cfg.tee.lat, cfg.tee.lng],
+        [cfg.green.lat, cfg.green.lng]
+      );
+      map.fitBounds(bounds, { padding: [80, 80] });
+    }
+    mapHasBeenPositioned = true;
+    document.getElementById('trim-val').textContent = `${trim > 0 ? '+' : ''}${trim}°`;
+    if (document.getElementById('setup-bar').style.display === 'flex') {
+      drawHoleArrow(cfg.tee, cfg.green);
+    } else {
+      removeHoleArrow();
+    }
+  } else {
+    map.setBearing(0);
+    // Only jump to course center on the very first load — otherwise stay where we are
+    // so navigating to unconfigured holes doesn't lose your place on the map
+    if (!mapHasBeenPositioned) {
+      map.setView(COURSE.center, 16);
+      mapHasBeenPositioned = true;
+    }
+    removeHoleArrow();
+  }
+}
+
+// Explicit "Save Default View" — persists center, zoom, and bearing for this hole
+document.getElementById('save-view-btn').addEventListener('click', () => {
+  if (!holeConfig[currentHole]) holeConfig[currentHole] = {};
+  const center = map.getCenter();
+  holeConfig[currentHole].savedView = {
+    lat: center.lat,
+    lng: center.lng,
+    zoom: map.getZoom()
+  };
+  saveHoleConfig();
+
+  // Flash confirmation
+  const btn = document.getElementById('save-view-btn');
+  const orig = btn.textContent;
+  btn.textContent = '✓ Saved';
+  btn.style.background = '#2d6a2d';
+  setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1200);
+});
+
+document.getElementById('trim-ccw').addEventListener('click', () => {
+  if (!holeConfig[currentHole]) return;
+  holeConfig[currentHole].trim = ((holeConfig[currentHole].trim || 0) - 5 + 360) % 360;
+  if (holeConfig[currentHole].trim > 180) holeConfig[currentHole].trim -= 360;
+  orientMap();
+});
+
+document.getElementById('trim-cw').addEventListener('click', () => {
+  if (!holeConfig[currentHole]) return;
+  holeConfig[currentHole].trim = ((holeConfig[currentHole].trim || 0) + 5 + 360) % 360;
+  if (holeConfig[currentHole].trim > 180) holeConfig[currentHole].trim -= 360;
+  orientMap();
+});
+
+let arrowPolyline = null;
+let arrowHead = null;
+
+function removeHoleArrow() {
+  if (arrowPolyline) { map.removeLayer(arrowPolyline); arrowPolyline = null; }
+  if (arrowHead)     { map.removeLayer(arrowHead);     arrowHead = null; }
+}
+
+function drawHoleArrow(tee, green) {
+  removeHoleArrow();
+
+  // Dashed line tee → green
+  arrowPolyline = L.polyline(
+    [[tee.lat, tee.lng], [green.lat, green.lng]],
+    { color: '#fff', weight: 2, dashArray: '6 6', opacity: 0.6 }
+  ).addTo(map);
+
+  // Arrowhead at green end using a rotated marker
+  const b = bearing(tee, green);
+  arrowHead = L.marker([green.lat, green.lng], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="transform:rotate(${b}deg);font-size:20px;color:#fff;text-shadow:0 0 4px #000;line-height:1;">▲</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    }),
+    interactive: false
+  }).addTo(map);
+}
+
+// ─── Load Hole ────────────────────────────────────────────────────────────────
+function loadHole(idx) {
+  holeConfig = JSON.parse(localStorage.getItem('stonebridge_config') || '{}');
+  currentHole = idx;
+  const h = COURSE.holes[idx];
+  document.getElementById('hole-label').textContent =
+    `Hole ${h.hole} — Par ${h.par} — ${h.yards} yds — SI ${h.si}`;
+
+  // Clear map markers
+  shotMapMarkers.forEach(m => map.removeLayer(m));
+  shotMapMarkers = [];
+  if (pinMapMarker) { map.removeLayer(pinMapMarker); pinMapMarker = null; }
+
+  // Restore saved data
+  const saved = roundData[idx] || {};
+  holeShots = (saved.shots || []).map(s => ({ ...s }));
+  holePuttStart = (saved.puttStart !== undefined && saved.puttStart !== null) ? saved.puttStart : null;
+  holePin = saved.pin ? { ...saved.pin } : null;
+  document.getElementById('score').value = saved.score || '';
+  document.getElementById('penalties').value = saved.penalties || '0';
+
+  // Restore shot markers
+  holeShots.forEach((s, i) => {
+    const isPutt = holePuttStart !== null && i >= holePuttStart;
+    const label = i === 0 ? 'T' : (isPutt ? `P${i - holePuttStart + 1}` : `${i}`);
+    const marker = L.marker([s.lat, s.lng], {
+      icon: makeShotIcon(label, isPutt), draggable: true
+    }).addTo(map);
+    const ci = i;
+    marker.on('dragend', () => {
+      const ll = marker.getLatLng();
+      holeShots[ci] = { ...holeShots[ci], lat: ll.lat, lng: ll.lng };
+      saveHoleData(); renderShotList();
+    });
+    shotMapMarkers.push(marker);
+  });
+
+  // Restore pin marker
+  if (holePin) {
+    pinMapMarker = L.marker([holePin.lat, holePin.lng], {
+      icon: makeIcon('#8a1a1a', '⛳'), draggable: true
+    }).addTo(map);
+    pinMapMarker.on('dragend', () => {
+      const ll = pinMapMarker.getLatLng();
+      holePin = { lat: ll.lat, lng: ll.lng };
+      saveHoleData(); renderShotList();
+    });
+  }
+
+  // Update toolbar button state
+  const addBtn = document.getElementById('add-shot-btn');
+  const greenBtn = document.getElementById('on-green-btn');
+  if (holePuttStart !== null) {
+    greenBtn.classList.add('active');
+    greenBtn.textContent = '⛳ On Green';
+    addBtn.textContent = '+ Putt';
+  } else {
+    greenBtn.classList.remove('active');
+    greenBtn.textContent = 'On Green';
+    addBtn.textContent = '+ Shot';
+  }
+
+  orientMap();
+  renderShotList();
+  exitShotMode();
+
+  if (appMode === 'plan') {
+    clearTempPlanLayers();
+    stopEditMeasurement();
+    measuringState = null;
+    document.getElementById('plan-new-form').style.display = 'none';
+    drawPlanMeasurements();
+  }
+}
+
+
+// ─── Map Click ────────────────────────────────────────────────────────────────
+map.on('click', function(e) {
+  if (appMode === 'plan') {
+    if (!measuringState) return;
+    addMeasuringPoint(e.latlng);
+    return;
+  }
+  if (setupMode) {
+    if (!holeConfig[currentHole]) holeConfig[currentHole] = {};
+    const key = setupMode === 'setup-tee' ? 'tee' : 'green';
+    holeConfig[currentHole][key] = { lat: e.latlng.lat, lng: e.latlng.lng };
+    saveHoleConfig();
+    if (mapMarkers_setup[setupMode]) map.removeLayer(mapMarkers_setup[setupMode]);
+    mapMarkers_setup[setupMode] = L.marker(e.latlng, { icon: ICONS[setupMode], draggable: true }).addTo(map);
+    mapMarkers_setup[setupMode].on('dragend', ev => {
+      const k2 = setupMode === 'setup-tee' ? 'tee' : 'green';
+      holeConfig[currentHole][k2] = { lat: ev.target.getLatLng().lat, lng: ev.target.getLatLng().lng };
+      saveHoleConfig();
+      const cfg = holeConfig[currentHole];
+      if (cfg.tee && cfg.green) drawHoleArrow(cfg.tee, cfg.green);
+    });
+    orientMap();
+    return;
+  }
+  if (activeShotMode === 'shot') { addShotAtLatLng(e.latlng); return; }
+  if (activeShotMode === 'pin')  { placePinAtLatLng(e.latlng); return; }
+});
+
+// ─── Setup Mode Toggle ────────────────────────────────────────────────────────
+document.getElementById('setup-toggle').addEventListener('click', () => {
+  const bar = document.getElementById('setup-bar');
+  const btn = document.getElementById('setup-toggle');
+  const isOpen = bar.style.display === 'flex';
+  bar.style.display = isOpen ? 'none' : 'flex';
+  btn.classList.toggle('active', !isOpen);
+  if (isOpen) {
+    // Exiting setup — clear marker mode and hide direction line
+    setupMode = null;
+    document.getElementById('setup-notice').style.display = 'none';
+    document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('active'));
+    removeHoleArrow();
+  } else {
+    // Entering setup — show direction line if hole is configured
+    const cfg = holeConfig[currentHole];
+    if (cfg && cfg.tee && cfg.green) drawHoleArrow(cfg.tee, cfg.green);
+  }
+});
+
+// ─── Setup Bar Marker Buttons ─────────────────────────────────────────────────
+document.querySelectorAll('.marker-btn[data-marker]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const marker = btn.dataset.marker;
+    const isSetup = marker.startsWith('setup-');
+    setupMode = isSetup ? marker : null;
+
+    document.querySelectorAll('.marker-btn[data-marker]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const notice = document.getElementById('setup-notice');
+    if (isSetup) {
+      document.getElementById('setup-type').textContent = marker === 'setup-tee' ? 'tee' : 'green center';
+      notice.style.display = 'block';
+    } else {
+      notice.style.display = 'none';
+    }
+  });
+});
+
+// ─── Shot Entry Toolbar ───────────────────────────────────────────────────────
+document.getElementById('add-shot-btn').addEventListener('click', () => {
+  activeShotMode === 'shot' ? exitShotMode() : enterAddShotMode();
+});
+document.getElementById('on-green-btn').addEventListener('click', () => {
+  if (holePuttStart !== null) return;
+  holePuttStart = holeShots.length;
+  document.getElementById('on-green-btn').classList.add('active');
+  document.getElementById('on-green-btn').textContent = '⛳ On Green';
+  document.getElementById('add-shot-btn').textContent = '+ Putt';
+  saveHoleData(); renderShotList();
+});
+document.getElementById('mark-pin-btn').addEventListener('click', () => {
+  activeShotMode === 'pin' ? exitShotMode() : enterPinMode();
+});
+
+// ─── Save Hole ────────────────────────────────────────────────────────────────
+document.getElementById('save-btn').addEventListener('click', () => {
+  if (!roundData[currentHole]) roundData[currentHole] = {};
+  roundData[currentHole].saved = true;
+  saveHoleData();
+  updateLog();
+  if (currentHole < 17) loadHole(currentHole + 1);
+});
+
+['score','penalties'].forEach(id => {
+  document.getElementById(id).addEventListener('change', saveHoleData);
+});
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+document.getElementById('prev-hole').addEventListener('click', () => {
+  loadHole((currentHole + 17) % 18);
+});
+document.getElementById('next-hole').addEventListener('click', () => {
+  loadHole((currentHole + 1) % 18);
+});
+
+// ─── Log ─────────────────────────────────────────────────────────────────────
+function updateLog() {
+  const container = document.getElementById('log-entries');
+  container.innerHTML = '';
+  COURSE.holes.forEach((h, idx) => {
+    const d = roundData[idx];
+    if (!d || !d.saved) return;
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    const score = parseInt(d.score) || (d.shots ? d.shots.length : 0);
+    const vsPar = score - h.par;
+    const vsParStr = vsPar === 0 ? 'E' : vsPar > 0 ? `+${vsPar}` : `${vsPar}`;
+    const putts = (d.puttStart != null && d.shots) ? d.shots.length - d.puttStart : '?';
+    div.innerHTML = `<span class="log-hole">H${h.hole}</span> <span class="log-score">${score} (${vsParStr})</span> · ${putts}p`;
+    container.appendChild(div);
+  });
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+document.getElementById('export-btn').addEventListener('click', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const header = 'date,course,hole,par,si,shot,type,lie,club,carry_yds,to_pin_yds,putt_ft,score,penalties';
+  const rows = [];
+  COURSE.holes.forEach((h, idx) => {
+    const d = roundData[idx] || {};
+    const shots = d.shots || [];
+    const ps = (d.puttStart != null) ? d.puttStart : shots.length;
+    const pin = d.pin;
+    shots.forEach((s, si) => {
+      const isPutt = si >= ps;
+      const type = si === 0 ? 'tee' : (isPutt ? 'putt' : 'approach');
+      const carry = si > 0 ? metresToYards(haversine(shots[si - 1], s)) : '';
+      const toPin = (!isPutt && pin) ? metresToYards(haversine(s, pin)) : '';
+      const puttFt = (isPutt && pin) ? metresToFeet(haversine(s, pin)) : '';
+      rows.push([today, COURSE.name, h.hole, h.par, h.si,
+        isPutt ? `P${si - ps + 1}` : si + 1,
+        type, s.lie || '', s.club || '',
+        carry, toPin, puttFt,
+        d.score || '', d.penalties || '0'].join(','));
+    });
+    if (!shots.length && d.score) {
+      rows.push([today, COURSE.name, h.hole, h.par, h.si, '', '', '', '', '', '', '', d.score, d.penalties || '0'].join(','));
+    }
+  });
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `stonebridge_${today}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ─── Shot Entry Functions ─────────────────────────────────────────────────────
+function makeShotIcon(label, isPutt) {
+  const color = label === 'T' ? '#1a6b1a' : (isPutt ? '#1a6a6a' : '#4a4a9a');
+  return makeIcon(color, label);
+}
+
+function enterAddShotMode() {
+  activeShotMode = 'shot';
+  document.getElementById('add-shot-btn').classList.add('active');
+  document.getElementById('mark-pin-btn').classList.remove('active');
+}
+function enterPinMode() {
+  activeShotMode = 'pin';
+  document.getElementById('mark-pin-btn').classList.add('active');
+  document.getElementById('add-shot-btn').classList.remove('active');
+}
+function exitShotMode() {
+  activeShotMode = null;
+  document.getElementById('add-shot-btn').classList.remove('active');
+  document.getElementById('mark-pin-btn').classList.remove('active');
+}
+
+function addShotAtLatLng(latlng) {
+  const isPutt = holePuttStart !== null;
+  const lie = holeShots.length === 0 ? 'tee' : (isPutt ? 'green' : null);
+  const idx = holeShots.length;
+  const puttNum = isPutt ? idx - holePuttStart + 1 : null;
+  const label = idx === 0 ? 'T' : (isPutt ? `P${puttNum}` : `${idx}`);
+  holeShots.push({ lat: latlng.lat, lng: latlng.lng, club: null, lie });
+  const marker = L.marker(latlng, { icon: makeShotIcon(label, isPutt), draggable: true }).addTo(map);
+  const ci = idx;
+  marker.on('dragend', () => {
+    const ll = marker.getLatLng();
+    holeShots[ci] = { ...holeShots[ci], lat: ll.lat, lng: ll.lng };
+    saveHoleData(); renderShotList();
+  });
+  shotMapMarkers.push(marker);
+  saveHoleData(); renderShotList(); exitShotMode();
+}
+
+function placePinAtLatLng(latlng) {
+  holePin = { lat: latlng.lat, lng: latlng.lng };
+  if (pinMapMarker) map.removeLayer(pinMapMarker);
+  pinMapMarker = L.marker(latlng, { icon: makeIcon('#8a1a1a', '⛳'), draggable: true }).addTo(map);
+  pinMapMarker.on('dragend', () => {
+    const ll = pinMapMarker.getLatLng();
+    holePin = { lat: ll.lat, lng: ll.lng };
+    saveHoleData(); renderShotList();
+  });
+  saveHoleData(); renderShotList(); exitShotMode();
+}
+
+function saveHoleData() {
+  if (!roundData[currentHole]) roundData[currentHole] = {};
+  Object.assign(roundData[currentHole], {
+    shots: holeShots,
+    puttStart: holePuttStart,
+    pin: holePin,
+    score: document.getElementById('score').value,
+    penalties: document.getElementById('penalties').value,
+  });
+  localStorage.setItem('stonebridge_round', JSON.stringify(roundData));
+}
+
+function renderShotList() {
+  const list = document.getElementById('shot-list');
+  const countEl = document.getElementById('shot-count');
+  list.innerHTML = '';
+  if (holeShots.length === 0) {
+    list.innerHTML = '<div style="color:#555;font-size:12px;padding:8px 0;">Press + Shot then tap the map</div>';
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  holeShots.forEach((s, i) => {
+    const isPutt = holePuttStart !== null && i >= holePuttStart;
+    const puttNum = isPutt ? i - holePuttStart + 1 : null;
+    const label = i === 0 ? 'T' : (isPutt ? `P${puttNum}` : `${i}`);
+    let carryYds = null, toPinYds = null, toPinFt = null;
+    if (i > 0) carryYds = metresToYards(haversine(holeShots[i - 1], s));
+    if (holePin) {
+      if (isPutt) toPinFt = metresToFeet(haversine(s, holePin));
+      else toPinYds = metresToYards(haversine(s, holePin));
+    }
+    const div = document.createElement('div');
+    div.className = 'shot-item';
+    div.dataset.idx = i;
+    if (isPutt) {
+      div.innerHTML = `
+        <div class="shot-row">
+          <span class="shot-num">${label}</span>
+          <span class="putt-ft">${toPinFt !== null ? toPinFt + 'ft' : '—'}</span>
+          <span class="shot-pin">to pin</span>
+          <button class="shot-del" data-idx="${i}">×</button>
+        </div>`;
+    } else {
+      const LIES = i === 0 ? [] : ['FW','Rough','Bunker','OB'];
+      div.innerHTML = `
+        <div class="shot-row">
+          <span class="shot-num">${label}</span>
+          <span class="shot-yds">${carryYds !== null ? carryYds + 'y' : '—'}</span>
+          <span class="shot-pin">${toPinYds !== null ? toPinYds + 'y to pin' : ''}</span>
+          <button class="shot-del" data-idx="${i}">×</button>
+        </div>
+        ${LIES.length ? `<div class="lie-group" style="margin-bottom:5px;">
+          ${LIES.map(l => `<button class="lie-btn shot-lie${s.lie === l ? ' selected' + (l==='OB'?' ob':'') : ''}" data-idx="${i}" data-lie="${l}">${l}</button>`).join('')}
+        </div>` : ''}
+        <select class="shot-club" data-idx="${i}" style="width:100%;margin-bottom:2px;">
+          <option value="">— club —</option>
+          ${CLUBS.map(c => `<option value="${c}"${s.club===c?' selected':''}>${c}</option>`).join('')}
+        </select>`;
+    }
+    list.appendChild(div);
+  });
+  list.querySelectorAll('.shot-lie').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      holeShots[idx].lie = btn.dataset.lie;
+      saveHoleData(); renderShotList();
+    });
+  });
+  list.querySelectorAll('.shot-club').forEach(sel => {
+    sel.addEventListener('change', () => {
+      holeShots[parseInt(sel.dataset.idx)].club = sel.value || null;
+      saveHoleData();
+    });
+  });
+  list.querySelectorAll('.shot-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      if (shotMapMarkers[idx]) map.removeLayer(shotMapMarkers[idx]);
+      shotMapMarkers.splice(idx, 1);
+      holeShots.splice(idx, 1);
+      if (holePuttStart !== null) {
+        if (idx < holePuttStart) holePuttStart--;
+        if (holePuttStart >= holeShots.length || holePuttStart < 0) holePuttStart = null;
+      }
+      saveHoleData(); renderShotList();
+    });
+  });
+  if (countEl) {
+    const putts = holePuttStart !== null ? holeShots.length - holePuttStart : 0;
+    countEl.textContent = `${holeShots.length} shots · ${putts} putts`;
+  }
+}
+
+// ─── Planning Mode ────────────────────────────────────────────────────────────
+let appMode = 'shot';
+let planningData = JSON.parse(localStorage.getItem('stonebridge_planning') || '{}');
+let planningLayers = [];
+let measuringState = null; // null | { points: [latlng,...] }
+let tempPlanLayers = [];
+let editingMeasurement = null; // { index, markers: [], line }
+
+const PLAN_COLORS = ['#FFD700','#ffffff','#ff5555','#ff9900','#55ff88','#55ddff','#bb55ff','#ff55aa'];
+let newMeasureColor  = '#FFD700';
+let newMeasureDashed = false;
+let planningGroupHidden = JSON.parse(localStorage.getItem('stonebridge_group_hidden') || '{}');
+function saveGroupHidden() { localStorage.setItem('stonebridge_group_hidden', JSON.stringify(planningGroupHidden)); }
+function isGroupHidden(g) { return !!(planningGroupHidden[currentHole] && planningGroupHidden[currentHole][g]); }
+function toggleGroupHidden(g) {
+  if (!planningGroupHidden[currentHole]) planningGroupHidden[currentHole] = {};
+  planningGroupHidden[currentHole][g] = !planningGroupHidden[currentHole][g];
+  saveGroupHidden();
+}
+let planningGroupCollapsed = JSON.parse(localStorage.getItem('stonebridge_group_collapsed') || '{}');
+function saveGroupCollapsed() { localStorage.setItem('stonebridge_group_collapsed', JSON.stringify(planningGroupCollapsed)); }
+function isGroupCollapsed(g) { return !!(planningGroupCollapsed[currentHole] && planningGroupCollapsed[currentHole][g]); }
+function toggleGroupCollapsed(g) {
+  if (!planningGroupCollapsed[currentHole]) planningGroupCollapsed[currentHole] = {};
+  planningGroupCollapsed[currentHole][g] = !planningGroupCollapsed[currentHole][g];
+  saveGroupCollapsed();
+}
+
+// Render color + dash controls into a container element; calls onChange(color, dashed) on change
+function renderColorDashControls(container, color, dashed, onChange) {
+  container.innerHTML = '';
+  // Color swatches
+  PLAN_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (c === color ? ' selected' : '');
+    sw.style.background = c;
+    sw.title = c;
+    sw.addEventListener('click', () => {
+      container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+      color = c;
+      onChange(color, dashed);
+    });
+    container.appendChild(sw);
+  });
+  // Separator
+  const sep = document.createElement('span');
+  sep.style.cssText = 'color:#555;font-size:16px;margin:0 2px;';
+  sep.textContent = '|';
+  container.appendChild(sep);
+  // Solid button
+  const solid = document.createElement('button');
+  solid.className = 'dash-btn' + (!dashed ? ' selected' : '');
+  solid.textContent = '——';
+  solid.addEventListener('click', () => {
+    dashed = false;
+    solid.classList.add('selected'); dash.classList.remove('selected');
+    onChange(color, dashed);
+  });
+  container.appendChild(solid);
+  // Dashed button
+  const dash = document.createElement('button');
+  dash.className = 'dash-btn' + (dashed ? ' selected' : '');
+  dash.textContent = '- -';
+  dash.addEventListener('click', () => {
+    dashed = true;
+    dash.classList.add('selected'); solid.classList.remove('selected');
+    onChange(color, dashed);
+  });
+  container.appendChild(dash);
+}
+
+function savePlanningData() {
+  localStorage.setItem('stonebridge_planning', JSON.stringify(planningData));
+}
+
+function clearPlanLayers() {
+  planningLayers.forEach(l => map.removeLayer(l));
+  planningLayers = [];
+}
+
+function clearTempPlanLayers() {
+  tempPlanLayers.forEach(l => map.removeLayer(l));
+  tempPlanLayers = [];
+  if (measuringState && measuringState.labelLayers) {
+    measuringState.labelLayers.forEach(l => map.removeLayer(l));
+  }
+}
+
+// Normalize legacy {from,to} format to {points:[...]}
+function getMPoints(m) {
+  return m.points || [m.from, m.to];
+}
+
+// Distance in yds for each leg
+function getMLegs(m) {
+  const pts = getMPoints(m);
+  const legs = [];
+  for (let i = 0; i < pts.length - 1; i++) legs.push(metresToYards(haversine(pts[i], pts[i+1])));
+  return legs;
+}
+
+function getMTotal(m) {
+  return getMLegs(m).reduce((s, v) => s + v, 0);
+}
+
+function legsLabel(legs) {
+  if (legs.length === 1) return `${legs[0]}y`;
+  return legs.join('y + ') + 'y = ' + legs.reduce((s,v)=>s+v,0) + 'y total';
+}
+
+function mapLabel(legs, label) {
+  const dist = legs.length === 1 ? `${legs[0]}y` : `${legs.reduce((s,v)=>s+v,0)}y`;
+  return dist + (label ? ' · ' + label : '');
+}
+
+function makeLabelIcon(text, color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="background:rgba(0,0,0,.75);color:${color||'#FFD700'};padding:2px 7px;border-radius:3px;font-size:11px;white-space:nowrap;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.5)">${text}</div>`,
+    iconSize: null, iconAnchor: [0, 8]
+  });
+}
+
+function drawPlanMeasurements() {
+  clearPlanLayers();
+  (planningData[currentHole] || []).forEach((m, i) => {
+    if (m.hidden) return;
+    if (m.group && isGroupHidden(m.group)) return;
+    if (editingMeasurement && editingMeasurement.index === i) return;
+    const pts = getMPoints(m);
+    const legs = getMLegs(m);
+    const color  = m.color  || '#FFD700';
+    const dArray = m.dashed ? '6 5' : null;
+
+    // Polyline through all points
+    const line = L.polyline(pts.map(p => [p.lat, p.lng]), { color, weight: 2, opacity: 0.9, dashArray: dArray }).addTo(map);
+    planningLayers.push(line);
+
+    // Per-leg distance labels
+    pts.slice(0, -1).forEach((p, j) => {
+      const next = pts[j + 1];
+      const mid = { lat: (p.lat + next.lat) / 2, lng: (p.lng + next.lng) / 2 };
+      const lbl = L.marker([mid.lat, mid.lng], { icon: makeLabelIcon(`${legs[j]}y`, color), interactive: false }).addTo(map);
+      planningLayers.push(lbl);
+    });
+
+    // Dot at each point
+    pts.forEach(p => {
+      const dot = L.circleMarker([p.lat, p.lng], { radius: 4, color, fillColor: color, fillOpacity: 1, weight: 1 }).addTo(map);
+      planningLayers.push(dot);
+    });
+  });
+  renderPlanSidebar();
+}
+
+function renderPlanSidebar() {
+  const measurements = planningData[currentHole] || [];
+  const list = document.getElementById('plan-list');
+  if (measurements.length === 0) {
+    list.innerHTML = '<div style="color:#555;font-size:12px;padding:4px 0;">No measurements yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+
+  // Build ordered group list (by first occurrence)
+  const groupOrder = [];
+  const groupMap = {};
+  const ungrouped = [];
+  measurements.forEach((m, i) => {
+    if (m.group) {
+      if (!groupMap[m.group]) { groupOrder.push(m.group); groupMap[m.group] = []; }
+      groupMap[m.group].push(i);
+    } else {
+      ungrouped.push(i);
+    }
+  });
+
+  // Populate autocomplete datalist
+  const dl = document.getElementById('group-names-list');
+  if (dl) dl.innerHTML = groupOrder.map(g => `<option value="${g}">`).join('');
+
+  function renderItem(i, inGroup = false) {
+    const m = measurements[i];
+    const isEditing = editingMeasurement && editingMeasurement.index === i;
+    const legs = getMLegs(m);
+    const total = getMTotal(m);
+    const mcolor = m.color || '#FFD700';
+    const div = document.createElement('div');
+    div.className = 'plan-item';
+    div.style.flexDirection = 'column';
+    div.style.alignItems = 'stretch';
+    div.dataset.idx = i;
+    if (inGroup) { div.style.paddingLeft = '10px'; div.style.borderLeft = '2px solid #2a3a2a'; }
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:4px;opacity:${m.hidden ? '0.4' : '1'};">
+        <div style="width:10px;height:10px;border-radius:2px;background:${mcolor};flex-shrink:0;${m.dashed?'border:1px dashed #fff;':''}"></div>
+        <span class="plan-dist">${total}y</span>
+        ${isEditing
+          ? `<input class="plan-label-edit" data-idx="${i}" value="${m.label || ''}" placeholder="Label…" style="flex:1;min-width:0;background:#1a1a1a;border:1px solid #fa0;color:#e0e0e0;padding:3px 6px;border-radius:3px;font-size:12px;">`
+          : `<span class="plan-label" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${m.label || '—'}</span>`}
+        <button class="plan-vis${m.hidden ? ' hidden' : ''}" data-vis="${i}" title="${m.hidden ? 'Show' : 'Hide'}">👁</button>
+        <button class="plan-move" data-move="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
+        <button class="plan-move" data-move="${i}" data-dir="1" ${i === measurements.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+        <button class="plan-edit${isEditing ? ' active' : ''}" data-edit="${i}" title="Edit">✏</button>
+        <button class="plan-del" data-del="${i}" title="Delete">×</button>
+      </div>
+      ${legs.length > 1 ? `<div class="plan-legs" style="font-size:11px;color:#888;padding:2px 0 4px 0;">${legs.map((l,j)=>`${String.fromCharCode(65+j)}→${String.fromCharCode(66+j)}: ${l}y`).join(' &nbsp;·&nbsp; ')}</div>` : ''}
+      ${isEditing ? `
+        <input class="plan-group-edit" data-idx="${i}" value="${m.group || ''}" placeholder="Group (optional)…" list="group-names-list"
+          style="width:100%;background:#1a1a1a;border:1px solid #555;color:#e0e0e0;padding:3px 6px;border-radius:3px;font-size:12px;margin-top:4px;">
+        <div class="edit-color-dash" data-idx="${i}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;"></div>` : ''}
+    `;
+    list.appendChild(div);
+  }
+
+  // Render groups then ungrouped
+  groupOrder.forEach(groupName => {
+    const ghidden = isGroupHidden(groupName);
+    const gcollapsed = isGroupCollapsed(groupName);
+    const count = groupMap[groupName].length;
+    const header = document.createElement('div');
+    header.className = 'plan-group-header';
+    header.innerHTML = `
+      <button class="group-collapse-btn" data-group="${groupName}" title="${gcollapsed ? 'Expand' : 'Collapse'}">${gcollapsed ? '▶' : '▼'}</button>
+      <span class="plan-group-name">${groupName}</span>
+      <span class="plan-group-count">${count}</span>
+      <button class="plan-vis group-vis${ghidden ? ' hidden' : ''}" data-group="${groupName}" title="${ghidden ? 'Show group' : 'Hide group'}">👁</button>
+    `;
+    list.appendChild(header);
+    if (!gcollapsed) groupMap[groupName].forEach(i => renderItem(i, true));
+  });
+  ungrouped.forEach(i => renderItem(i));
+
+  // Event handlers
+  list.querySelectorAll('.group-collapse-btn').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); toggleGroupCollapsed(btn.dataset.group); renderPlanSidebar(); });
+  });
+  list.querySelectorAll('.group-vis').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); toggleGroupHidden(btn.dataset.group); drawPlanMeasurements(); });
+  });
+  list.querySelectorAll('.plan-vis[data-vis]').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.vis);
+      planningData[currentHole][idx].hidden = !planningData[currentHole][idx].hidden;
+      savePlanningData(); drawPlanMeasurements();
+    });
+  });
+  list.querySelectorAll('.plan-move').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      if (btn.disabled) return;
+      e.preventDefault(); // prevent blur on any focused input before the move fires
+      moveMeasurement(parseInt(btn.dataset.move), parseInt(btn.dataset.dir));
+    });
+  });
+  list.querySelectorAll('.plan-edit').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.edit);
+      editingMeasurement && editingMeasurement.index === idx ? stopEditMeasurement() : startEditMeasurement(idx);
+    });
+  });
+  list.querySelectorAll('.plan-del').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.del);
+      if (editingMeasurement && editingMeasurement.index === idx) stopEditMeasurement();
+      planningData[currentHole].splice(idx, 1);
+      savePlanningData(); drawPlanMeasurements();
+    });
+  });
+  list.querySelectorAll('.plan-label-edit').forEach(input => {
+    input.addEventListener('input', () => {
+      planningData[currentHole][parseInt(input.dataset.idx)].label = input.value;
+      savePlanningData();
+    });
+    input.addEventListener('blur', (e) => {
+      const item = input.closest('.plan-item');
+      if (item && e.relatedTarget && item.contains(e.relatedTarget)) return;
+      drawPlanMeasurements();
+    });
+  });
+  list.querySelectorAll('.plan-group-edit').forEach(input => {
+    input.addEventListener('input', () => {
+      planningData[currentHole][parseInt(input.dataset.idx)].group = input.value.trim() || null;
+      savePlanningData();
+    });
+    input.addEventListener('blur', (e) => {
+      const item = input.closest('.plan-item');
+      if (item && e.relatedTarget && item.contains(e.relatedTarget)) return;
+      drawPlanMeasurements();
+    });
+  });
+  list.querySelectorAll('.edit-color-dash').forEach(container => {
+    const idx = parseInt(container.dataset.idx);
+    const m = planningData[currentHole][idx];
+    renderColorDashControls(container, m.color || '#FFD700', !!m.dashed, (color, dashed) => {
+      planningData[currentHole][idx].color  = color;
+      planningData[currentHole][idx].dashed = dashed;
+      savePlanningData();
+      if (editingMeasurement && editingMeasurement.line) {
+        editingMeasurement.line.setStyle({ color, dashArray: dashed ? '6 5' : null });
+        editingMeasurement.markers.forEach(mk => mk.setIcon(L.divIcon({
+          className: '',
+          html: `<div style="background:${color};width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6);cursor:grab;"></div>`,
+          iconSize: [14,14], iconAnchor: [7,7]
+        })));
+      }
+      drawPlanMeasurements();
+    });
+  });
+}
+
+// Update distance display during active measurement
+function updateMeasuringDisplay() {
+  const pts = measuringState.points;
+  const distEl = document.getElementById('plan-new-dist');
+  const finBtn = document.getElementById('plan-finish-measure');
+  if (pts.length === 0) {
+    distEl.textContent = 'Click map to place first point';
+    finBtn.disabled = true; finBtn.style.opacity = '.4';
+    return;
+  }
+  if (pts.length === 1) {
+    distEl.textContent = 'Point A placed — click to add more points';
+    finBtn.disabled = true; finBtn.style.opacity = '.4';
+    return;
+  }
+  const legs = [];
+  for (let i = 0; i < pts.length - 1; i++) legs.push(metresToYards(haversine(pts[i], pts[i+1])));
+  distEl.textContent = legsLabel(legs);
+  finBtn.disabled = false; finBtn.style.opacity = '1';
+}
+
+function addMeasuringPoint(latlng) {
+  measuringState.points.push({ lat: latlng.lat, lng: latlng.lng });
+
+  const marker = L.marker(latlng, {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="background:${newMeasureColor};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6);cursor:grab;"></div>`,
+      iconSize: [12, 12], iconAnchor: [6, 6]
+    }),
+    draggable: true
+  }).addTo(map);
+
+  marker.on('drag', () => {
+    const i = measuringState.markers.indexOf(marker);
+    if (i === -1) return;
+    const ll = marker.getLatLng();
+    measuringState.points[i] = { lat: ll.lat, lng: ll.lng };
+    updateMeasuringPolyline();
+    refreshDistanceLabels(measuringState.markers, newMeasureColor, measuringState.labelLayers);
+    updateMeasuringDisplay();
+  });
+
+  marker.on('click', (e) => {
+    if (!e.originalEvent.altKey) return;
+    const i = measuringState.markers.indexOf(marker);
+    if (i === -1) return;
+    map.removeLayer(marker);
+    measuringState.markers.splice(i, 1);
+    measuringState.points.splice(i, 1);
+    if (measuringState.points.length < 2 && measuringState.polyline) {
+      map.removeLayer(measuringState.polyline);
+      measuringState.polyline = null;
+    } else if (measuringState.points.length >= 2) {
+      updateMeasuringPolyline();
+    }
+    refreshDistanceLabels(measuringState.markers, newMeasureColor, measuringState.labelLayers);
+    updateMeasuringDisplay();
+  });
+
+  measuringState.markers.push(marker);
+  tempPlanLayers.push(marker);
+  updateMeasuringPolyline();
+  refreshDistanceLabels(measuringState.markers, newMeasureColor, measuringState.labelLayers);
+  updateMeasuringDisplay();
+}
+
+function updateMeasuringPolyline() {
+  const pts = measuringState.points;
+  if (pts.length < 2) return;
+  if (measuringState.polyline) {
+    measuringState.polyline.setLatLngs(pts.map(p => [p.lat, p.lng]));
+  } else {
+    measuringState.polyline = L.polyline(
+      pts.map(p => [p.lat, p.lng]),
+      { color: newMeasureColor, weight: 2, dashArray: newMeasureDashed ? '5 4' : null, opacity: 0.8 }
+    ).addTo(map);
+    tempPlanLayers.push(measuringState.polyline);
+  }
+}
+
+function enterPlanMode() {
+  appMode = 'plan';
+  document.getElementById('shot-marker-btns').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'none';
+  document.getElementById('plan-sidebar').style.display = 'flex';
+  document.getElementById('plan-sidebar').style.flexDirection = 'column';
+  document.getElementById('mode-shot').classList.remove('active');
+  document.getElementById('mode-plan').classList.add('active');
+  drawPlanMeasurements();
+}
+
+function enterShotMode() {
+  appMode = 'shot';
+  measuringState = null;
+  stopEditMeasurement();
+  clearTempPlanLayers();
+  clearPlanLayers();
+  document.getElementById('plan-new-form').style.display = 'none';
+  document.getElementById('shot-marker-btns').style.display = '';
+  document.getElementById('sidebar').style.display = '';
+  document.getElementById('plan-sidebar').style.display = 'none';
+  document.getElementById('mode-shot').classList.add('active');
+  document.getElementById('mode-plan').classList.remove('active');
+}
+
+const editIcon = L.divIcon({
+  className: '',
+  html: `<div style="background:#fa0;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6);cursor:grab;"></div>`,
+  iconSize: [14, 14], iconAnchor: [7, 7]
+});
+
+function startEditMeasurement(idx) {
+  stopEditMeasurement();
+  const m = (planningData[currentHole] || [])[idx];
+  if (!m) return;
+  const pts = getMPoints(m);
+  editingMeasurement = { index: idx, markers: [], line: null, labelLayers: [] };
+
+  const editLine = L.polyline(pts.map(p => [p.lat, p.lng]), { color: '#fa0', weight: 2, dashArray: '5 4' }).addTo(map);
+  editingMeasurement.line = editLine;
+
+  // Click on the line to insert a new point on the nearest segment
+  editLine.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    const click = e.latlng;
+    const mks = editingMeasurement.markers;
+    let bestSeg = 0, bestDist = Infinity;
+    for (let s = 0; s < mks.length - 1; s++) {
+      const a = mks[s].getLatLng(), b = mks[s + 1].getLatLng();
+      const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+      const d = click.distanceTo(mid);
+      if (d < bestDist) { bestDist = d; bestSeg = s; }
+    }
+    const idx = editingMeasurement.index;
+    const newPts = mks.map(mk => { const ll = mk.getLatLng(); return { lat: ll.lat, lng: ll.lng }; });
+    newPts.splice(bestSeg + 1, 0, { lat: click.lat, lng: click.lng });
+    planningData[currentHole][idx].points = newPts;
+    delete planningData[currentHole][idx].from;
+    delete planningData[currentHole][idx].to;
+    delete planningData[currentHole][idx].yds;
+    savePlanningData();
+    startEditMeasurement(idx);
+  });
+
+  pts.forEach((pt, pi) => {
+    const marker = L.marker([pt.lat, pt.lng], { icon: editIcon, draggable: true }).addTo(map);
+    marker.on('drag', () => {
+      const mks = editingMeasurement.markers;
+      editLine.setLatLngs(mks.map(mk => { const ll = mk.getLatLng(); return [ll.lat, ll.lng]; }));
+      updateEditLabels();
+      // Live sidebar readout
+      const legYds = editingMeasurement.labelLayers.map((_, s) => metresToYards(haversine(mks[s].getLatLng(), mks[s+1].getLatLng())));
+      const total = legYds.reduce((a, v) => a + v, 0);
+      const item = document.querySelector(`.plan-item[data-idx="${editingMeasurement.index}"]`);
+      if (item) {
+        const distSpan = item.querySelector('.plan-dist');
+        if (distSpan) distSpan.textContent = `${total}y`;
+        const legsDiv = item.querySelector('.plan-legs');
+        if (legsDiv) legsDiv.innerHTML = legYds.map((l,j) => `${String.fromCharCode(65+j)}→${String.fromCharCode(66+j)}: ${l}y`).join(' &nbsp;·&nbsp; ');
+      }
+    });
+    marker.on('dragend', () => {
+      const newPts = editingMeasurement.markers.map(mk => { const ll = mk.getLatLng(); return { lat: ll.lat, lng: ll.lng }; });
+      planningData[currentHole][idx].points = newPts;
+      delete planningData[currentHole][idx].from;
+      delete planningData[currentHole][idx].to;
+      delete planningData[currentHole][idx].yds;
+      savePlanningData();
+      renderPlanSidebar();
+    });
+    marker.on('click', (e) => {
+      if (!e.originalEvent.altKey) return;
+      const remaining = editingMeasurement.markers.filter((_, mi) => mi !== pi);
+      if (remaining.length < 2) return; // must keep at least 2 points
+      const newPts = remaining.map(mk => { const ll = mk.getLatLng(); return { lat: ll.lat, lng: ll.lng }; });
+      planningData[currentHole][idx].points = newPts;
+      delete planningData[currentHole][idx].from;
+      delete planningData[currentHole][idx].to;
+      delete planningData[currentHole][idx].yds;
+      savePlanningData();
+      startEditMeasurement(idx); // rebuild handles with point removed
+    });
+    editingMeasurement.markers.push(marker);
+  });
+
+  updateEditLabels();
+  drawPlanMeasurements();
+}
+
+function refreshDistanceLabels(markers, color, labelLayers) {
+  labelLayers.forEach(l => map.removeLayer(l));
+  labelLayers.length = 0;
+  for (let s = 0; s < markers.length - 1; s++) {
+    const a = markers[s].getLatLng(), b = markers[s + 1].getLatLng();
+    const mid = { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+    const lbl = L.marker([mid.lat, mid.lng], {
+      icon: makeLabelIcon(`${metresToYards(haversine(a, b))}y`, color),
+      interactive: false
+    }).addTo(map);
+    labelLayers.push(lbl);
+  }
+}
+
+function updateEditLabels() {
+  if (!editingMeasurement) return;
+  const m = (planningData[currentHole] || [])[editingMeasurement.index];
+  if (!m) return;
+  refreshDistanceLabels(editingMeasurement.markers, m.color || '#FFD700', editingMeasurement.labelLayers);
+}
+
+function stopEditMeasurement() {
+  if (!editingMeasurement) return;
+  editingMeasurement.markers.forEach(mk => map.removeLayer(mk));
+  if (editingMeasurement.line) map.removeLayer(editingMeasurement.line);
+  editingMeasurement.labelLayers.forEach(l => map.removeLayer(l));
+  editingMeasurement = null;
+  drawPlanMeasurements();
+}
+
+function moveMeasurement(idx, dir) {
+  const arr = planningData[currentHole];
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  if (editingMeasurement) {
+    if (editingMeasurement.index === idx) editingMeasurement.index = newIdx;
+    else if (editingMeasurement.index === newIdx) editingMeasurement.index = idx;
+  }
+  savePlanningData();
+  drawPlanMeasurements();
+}
+
+document.getElementById('mode-shot').addEventListener('click', enterShotMode);
+document.getElementById('mode-plan').addEventListener('click', enterPlanMode);
+
+// New measurement button
+document.getElementById('new-measure-btn').addEventListener('click', () => {
+  stopEditMeasurement();
+  clearTempPlanLayers();
+  measuringState = { points: [], markers: [], polyline: null, labelLayers: [] };
+  newMeasureColor  = '#FFD700';
+  newMeasureDashed = false;
+  document.getElementById('new-measure-btn').classList.add('active');
+  document.getElementById('plan-new-form').style.display = '';
+  document.getElementById('plan-label-input').value = '';
+  renderColorDashControls(
+    document.getElementById('new-color-dash'),
+    newMeasureColor, newMeasureDashed,
+    (c, d) => { newMeasureColor = c; newMeasureDashed = d; }
+  );
+  updateMeasuringDisplay();
+});
+
+// Finish measurement
+document.getElementById('plan-finish-measure').addEventListener('click', () => {
+  if (!measuringState || measuringState.points.length < 2) return;
+  const label = document.getElementById('plan-label-input').value.trim();
+  const group = document.getElementById('plan-group-input').value.trim() || null;
+  if (!planningData[currentHole]) planningData[currentHole] = [];
+  planningData[currentHole].push({ label, group, points: measuringState.points.map(p => ({ lat: p.lat, lng: p.lng })), color: newMeasureColor, dashed: newMeasureDashed });
+  savePlanningData();
+  clearTempPlanLayers();
+  measuringState = null;
+  document.getElementById('plan-new-form').style.display = 'none';
+  document.getElementById('plan-label-input').value = '';
+  document.getElementById('plan-group-input').value = '';
+  document.getElementById('new-measure-btn').classList.remove('active');
+  drawPlanMeasurements();
+});
+
+// Cancel measurement
+document.getElementById('plan-cancel-measure').addEventListener('click', () => {
+  clearTempPlanLayers();
+  measuringState = null;
+  document.getElementById('plan-new-form').style.display = 'none';
+  document.getElementById('plan-label-input').value = '';
+  document.getElementById('plan-group-input').value = '';
+  document.getElementById('new-measure-btn').classList.remove('active');
+});
+
+// ─── Data Persistence ─────────────────────────────────────────────────────────
+function saveHoleConfig() {
+  localStorage.setItem('stonebridge_config', JSON.stringify(holeConfig));
+}
+
+function diskPayload() {
+  return JSON.stringify({
+    planning:       planningData,
+    groupHidden:    planningGroupHidden,
+    groupCollapsed: planningGroupCollapsed,
+    holeConfig:     holeConfig,
+    roundData:      roundData
+  }, null, 2);
+}
+
+function applyData(data) {
+  if (data.planning)       { planningData = data.planning; localStorage.setItem('stonebridge_planning', JSON.stringify(planningData)); }
+  if (data.groupHidden)    { planningGroupHidden = data.groupHidden; localStorage.setItem('stonebridge_group_hidden', JSON.stringify(planningGroupHidden)); }
+  if (data.groupCollapsed) { planningGroupCollapsed = data.groupCollapsed; localStorage.setItem('stonebridge_group_collapsed', JSON.stringify(planningGroupCollapsed)); }
+  if (data.holeConfig)     { holeConfig = data.holeConfig; localStorage.setItem('stonebridge_config', JSON.stringify(holeConfig)); }
+  if (data.roundData)      { roundData = data.roundData; localStorage.setItem('stonebridge_round', JSON.stringify(roundData)); }
+}
+
+// Remembers which save was last loaded so startup auto-fetches the right file.
+let lastLoadedSave = localStorage.getItem('last_loaded_save') || 'data.json';
+
+async function loadFromRepo() {
+  try {
+    const res = await fetch(`./saves/${lastLoadedSave}`);
+    if (!res.ok) return;
+    applyData(await res.json());
+  } catch (e) { /* running as file:// — localStorage used instead */ }
+}
+
+async function listSaves() {
+  try {
+    const res = await fetch('https://api.github.com/repos/mloreti/g-track/contents/saves');
+    if (!res.ok) return [];
+    const files = await res.json();
+    return files.filter(f => f.name.endsWith('.json')).sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { return []; }
+}
+
+async function populateSavesList() {
+  const list = document.getElementById('saves-list');
+  list.innerHTML = '<span style="color:#555;font-size:12px;">Loading…</span>';
+  const files = await listSaves();
+  if (files.length === 0) {
+    list.innerHTML = '<span style="color:#555;font-size:12px;">No saves found — push a .json file to saves/ to see it here.</span>';
+    return;
+  }
+  list.innerHTML = '';
+  files.forEach(f => {
+    const active = f.name === lastLoadedSave;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #2a2a2a;';
+    row.innerHTML = `
+      <span style="flex:1;font-size:13px;color:${active ? '#6cf' : '#aaa'};">${f.name}${active ? '  ·  active' : ''}</span>
+      <button class="load-save-btn" data-file="${f.name}"
+        style="border:1px solid ${active ? '#2a6a9a' : '#444'};padding:3px 12px;border-radius:3px;background:${active ? '#1a4a6a' : '#2a2a2a'};color:${active ? '#6cf' : '#888'};cursor:pointer;font-size:12px;">
+        ${active ? '✓ Loaded' : 'Load'}
+      </button>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('.load-save-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const fname = btn.dataset.file;
+      btn.textContent = '…';
+      try {
+        const res = await fetch(`./saves/${fname}`);
+        if (!res.ok) throw new Error();
+        applyData(await res.json());
+        lastLoadedSave = fname;
+        localStorage.setItem('last_loaded_save', fname);
+        loadHole(currentHole);
+        populateSavesList();
+      } catch (e) {
+        btn.textContent = '✗ Error';
+        setTimeout(() => populateSavesList(), 1500);
+      }
+    });
+  });
+}
+
+document.getElementById('saves-btn').addEventListener('click', () => {
+  const bar = document.getElementById('saves-bar');
+  const opening = bar.style.display !== 'flex';
+  bar.style.display = opening ? 'flex' : 'none';
+  if (opening) populateSavesList();
+});
+
+document.getElementById('do-save-btn').addEventListener('click', () => {
+  const raw = document.getElementById('save-name-input').value.trim() || 'data.json';
+  const fname = raw.endsWith('.json') ? raw : raw + '.json';
+  const blob = new Blob([diskPayload()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  const btn = document.getElementById('do-save-btn');
+  btn.textContent = '✓ Downloaded';
+  setTimeout(() => { btn.textContent = '💾 Download'; }, 1400);
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadFromRepo().then(() => loadHole(0));
+</script>
+</body>
+</html>

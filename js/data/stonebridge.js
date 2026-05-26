@@ -1,0 +1,138 @@
+// Stonebridge Country Club — Naples, FL
+// Tee / green coordinates extracted from planning saves.
+// savedView gives a good initial map center+zoom per hole.
+// trim is the bearing offset (degrees) used to rotate the map so the hole plays bottom-to-top.
+
+export const STONEBRIDGE = {
+  name: 'Stonebridge Country Club',
+  city: 'Naples, FL',
+  par:  71,
+  holes: [
+    {
+      holeNum: 1, par: 4, si: 14,
+      tee:   { lat: 26.26889408600258,  lng: -81.77718400955202 },
+      green: { lat: 26.26837215451554,  lng: -81.78022295236589 },
+      trim:  20,
+      savedView: { lat: 26.268256904070576, lng: -81.77854693208175, zoom: 18 },
+    },
+    {
+      holeNum: 2, par: 4, si: 6,
+      tee:   { lat: 26.268004155328434, lng: -81.78191006183626 },
+      green: { lat: 26.26526697444313,  lng: -81.78107857704164 },
+      trim:  -165,
+      savedView: { lat: 26.26679911642019, lng: -81.78146660421251, zoom: 18 },
+    },
+    {
+      holeNum: 3, par: 5, si: 8,
+      tee:   { lat: 26.264926657532133, lng: -81.78100488941828 },
+      green: { lat: 26.264628401063312, lng: -81.7853125170962  },
+      trim:  5,
+      savedView: { lat: 26.264652709800846, lng: -81.7824285417704, zoom: 18 },
+    },
+    {
+      holeNum: 4, par: 4, si: 2,
+      tee:   { lat: 26.264941159500303, lng: -81.78563870703432 },
+      green: { lat: 26.26192137923337,  lng: -81.78533599208298 },
+      trim:  -175,
+      savedView: { lat: 26.263558399790142, lng: -81.78519119073448, zoom: 18 },
+    },
+    {
+      holeNum: 5, par: 3, si: 18,
+      tee:   { lat: 26.262487171921762, lng: -81.78487089006582 },
+      green: { lat: 26.263367523591207, lng: -81.78382482855002 },
+      trim:  85,
+      savedView: { lat: 26.262913915309248, lng: -81.78442945388684, zoom: 19 },
+    },
+    {
+      holeNum: 6, par: 4, si: 12,
+      tee:   { lat: 26.263109949759503, lng: -81.78033640293012 },
+      green: { lat: 26.265630706819927, lng: -81.77892019657025 },
+      trim:  125,
+      savedView: { lat: 26.2643241271945, lng: -81.77983666976644, zoom: 18 },
+    },
+    {
+      holeNum: 7, par: 4, si: 10,
+      tee:   { lat: 26.26552975839217,  lng: -81.77836752315453 },
+      green: { lat: 26.262798532509777, lng: -81.77898979564597 },
+      trim:  155,
+      savedView: { lat: 26.264289971861338, lng: -81.77856723754616, zoom: 18 },
+    },
+    {
+      holeNum: 8, par: 3, si: 16,
+      tee:   { lat: 26.262942017624013, lng: -81.77855690463888 },
+      green: { lat: 26.264438124568166, lng: -81.77815457328663 },
+      trim:  155,
+      savedView: { lat: 26.263676644053216, lng: -81.77836202182608, zoom: 18 },
+    },
+    {
+      holeNum: 9, par: 4, si: 4,
+      tee:   { lat: 26.26350530760049,  lng: -81.77692339947153 },
+      green: { lat: 26.266490271919725, lng: -81.77667931845116 },
+      trim:  -175,
+      savedView: { lat: 26.26483966010384, lng: -81.77715746055206, zoom: 18 },
+    },
+    {
+      holeNum: 10, par: 4, si: 5,
+      tee:   { lat: 26.269035598676158, lng: -81.7766878691568  },
+      green: { lat: 26.27187130178104,  lng: -81.77672273787401 },
+      trim:  180,
+      savedView: { lat: 26.270287350086488, lng: -81.77705695413302, zoom: 18 },
+    },
+    {
+      holeNum: 11, par: 3, si: 13,
+      tee:   { lat: 26.271623353983802, lng: -81.77579981532742 },
+      green: { lat: 26.27189751347474,  lng: -81.77440914557556 },
+      trim:  25,
+      savedView: { lat: 26.271797415422043, lng: -81.77517595748088, zoom: 19 },
+    },
+    {
+      holeNum: 12, par: 4, si: 3,
+      tee:   { lat: 26.271714927257285, lng: -81.7741481545653  },
+      green: { lat: 26.268181707589935, lng: -81.77419375211855 },
+      trim:  180,
+      savedView: { lat: 26.27042564971854, lng: -81.77387234646604, zoom: 18 },
+    },
+    {
+      holeNum: 13, par: 4, si: 15,
+      tee:   { lat: 26.26821924283983,  lng: -81.77384410302444 },
+      green: { lat: 26.268706299435298, lng: -81.77094865839288 },
+      trim:  20,
+      savedView: { lat: 26.268619304354228, lng: -81.77248032839805, zoom: 18 },
+    },
+    {
+      holeNum: 14, par: 4, si: 9,
+      tee:   { lat: 26.267699145492315, lng: -81.77015953250655 },
+      green: { lat: 26.2643365802583,   lng: -81.77032046504745 },
+      trim:  175,
+      savedView: { lat: 26.26622088647304, lng: -81.77031437652711, zoom: 18 },
+    },
+    {
+      holeNum: 15, par: 5, si: 11,
+      tee:   { lat: 26.262477247275523, lng: -81.77013514352166 },
+      green: { lat: 26.26199267449337,  lng: -81.77459291268683 },
+      trim:  10,
+      savedView: { lat: 26.262143364482505, lng: -81.77159353476074, zoom: 18 },
+    },
+    {
+      holeNum: 16, par: 4, si: 1,
+      tee:   { lat: 26.26361359947785,  lng: -81.77567294830132 },
+      green: { lat: 26.263579925017968, lng: -81.77186555260467 },
+      trim:  0,
+      savedView: { lat: 26.263744606692907, lng: -81.7742550099852, zoom: 18 },
+    },
+    {
+      holeNum: 17, par: 3, si: 17,
+      tee:   { lat: 26.263907594959647, lng: -81.77153631630785 },
+      green: { lat: 26.264306876085797, lng: -81.77317782822496 },
+      trim:  -30,
+      savedView: { lat: 26.26384692898332, lng: -81.77230228781436, zoom: 19 },
+    },
+    {
+      holeNum: 18, par: 5, si: 7,
+      tee:   { lat: 26.264229240145923, lng: -81.7722172336505  },
+      green: { lat: 26.26666096591198,  lng: -81.7755377701905  },
+      trim:  -80,
+      savedView: { lat: 26.2645920146785, lng: -81.77363246294168, zoom: 18 },
+    },
+  ],
+};

@@ -1,0 +1,17 @@
+{
+  "name": "g-track",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "bun test tests/models tests/scenarios",
+    "test:watch": "bun test --watch tests/models tests/scenarios",
+    "test:e2e": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "bun-types": "latest"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}
