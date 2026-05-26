@@ -27,8 +27,9 @@ export class ShotEntry {
     this._pinMarker     = null;
     this._activeMode    = null;
     this._deregClick    = null;
-    this._arcLayers     = [];
-    this._arcLabels     = [];
+    this._arcLayers       = [];
+    this._arcLabels       = [];
+    this._pinIsFirstSetup = false;
 
     this._bindUI();
   }
@@ -66,14 +67,17 @@ export class ShotEntry {
 
   _autoPlaceTee() {
     const teeLatLng = this.cfg.tee;
-    if (!teeLatLng) {
-      this._setGuidance('Tap to place tee');
+    if (teeLatLng) this._placeTeeAt(teeLatLng);
+
+    // Pin must be placed each session — it changes daily
+    if (!this.hole.pin) {
+      this._pinIsFirstSetup = true;
+      this._enterMode('pin');
+      this._setGuidance('Tap to set the pin location');
+    } else {
       this._enterMode('shot');
-      return;
+      this._setGuidance('Tap where your tee shot landed');
     }
-    this._placeTeeAt(teeLatLng);
-    this._setGuidance('Tap map — where did your tee shot land?');
-    this._enterMode('shot');
   }
 
   _placeTeeAt(latlng) {
@@ -174,8 +178,8 @@ export class ShotEntry {
   _enterGreen() {
     this.phase = 'putting';
     this._exitMode();
-    this._setGuidance('Place the pin (📌), then tap map for each putt');
     document.getElementById('btn-on-green').classList.add('green');
+    this._setGuidance('Tap + Putt for each putt');
     this.renderShotList();
     this.onRoundChange();
   }
@@ -245,6 +249,13 @@ export class ShotEntry {
     this._exitMode();
     this.renderShotList();
     this.onRoundChange();
+
+    // After initial pin setup, automatically enter shot mode for tee landing
+    if (this._pinIsFirstSetup) {
+      this._pinIsFirstSetup = false;
+      this._enterMode('shot');
+      this._setGuidance('Tap where your tee shot landed');
+    }
   }
 
   // ── Undo ────────────────────────────────────────────────────────────────────
@@ -289,36 +300,67 @@ export class ShotEntry {
     this._arcLabels = [];
 
     const shots = this.hole.shots;
+    const putts = this.hole.putts;
+    const pin   = this.hole.pin;
+
+    // Shot-to-shot arcs with carry distance labels
     for (let i = 0; i + 1 < shots.length; i++) {
       const from = shots[i].latlng;
       const to   = shots[i + 1].latlng;
-      if (!from || !to) continue;
+      if (from && to) this._addArc(from, to, this.hole.carryYds(i));
+    }
 
-      const pts = this._bezierArc(from, to);
-      const line = L.polyline(pts, {
-        color: '#4a9eff',
-        weight: 2.5,
-        opacity: 0.85,
-        smoothFactor: 0,
-        interactive: false,
-      }).addTo(this.mapMgr.map);
-      this._arcLayers.push(line);
-
-      const dist = this.hole.carryYds(i);
-      if (dist !== null) {
-        const mid = pts[Math.floor(pts.length / 2)];
-        const lbl = L.marker(mid, {
-          icon: L.divIcon({
-            className: 'arc-label',
-            html: `${Math.round(dist)} yds`,
-            iconSize: null,
-            iconAnchor: [28, 10],
-          }),
-          interactive: false,
-          zIndexOffset: -10,
-        }).addTo(this.mapMgr.map);
-        this._arcLabels.push(lbl);
+    // Last shot → first putt (or pin if in putting phase with no putts yet)
+    if (shots.length > 0) {
+      const lastPos = shots[shots.length - 1].latlng;
+      if (lastPos) {
+        if (putts.length > 0 && putts[0].latlng) {
+          this._addArc(lastPos, putts[0].latlng);
+        } else if (pin && this.phase === 'putting') {
+          this._addArc(lastPos, pin, null, true);
+        }
       }
+    }
+
+    // Putt-to-putt arcs
+    for (let i = 0; i + 1 < putts.length; i++) {
+      const from = putts[i].latlng;
+      const to   = putts[i + 1].latlng;
+      if (from && to) this._addArc(from, to);
+    }
+
+    // Last putt → pin
+    if (putts.length > 0 && pin) {
+      const lastPutt = putts[putts.length - 1];
+      if (lastPutt.latlng) this._addArc(lastPutt.latlng, pin);
+    }
+  }
+
+  _addArc(from, to, dist = null, dashed = false) {
+    const pts  = this._bezierArc(from, to);
+    const line = L.polyline(pts, {
+      color: '#4a9eff',
+      weight: 2.5,
+      opacity: 0.85,
+      smoothFactor: 0,
+      interactive: false,
+      ...(dashed ? { dashArray: '6 6' } : {}),
+    }).addTo(this.mapMgr.map);
+    this._arcLayers.push(line);
+
+    if (dist !== null) {
+      const mid = pts[Math.floor(pts.length / 2)];
+      const lbl = L.marker(mid, {
+        icon: L.divIcon({
+          className: 'arc-label',
+          html: `${Math.round(dist)} yds`,
+          iconSize: null,
+          iconAnchor: [28, 10],
+        }),
+        interactive: false,
+        zIndexOffset: -10,
+      }).addTo(this.mapMgr.map);
+      this._arcLabels.push(lbl);
     }
   }
 

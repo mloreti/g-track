@@ -2,11 +2,32 @@
  * E2E tests for the G-Track shot entry app.
  * Requires a local HTTP server at http://localhost:8765 serving the project root.
  * Start with: python3 -m http.server 8765
+ *
+ * Flow per hole:
+ *   1. Load → tee auto-placed, guidance prompts for pin
+ *   2. First map click → places pin, guidance shifts to "tee shot landed"
+ *   3. Second map click → places tee landing (approach dot)
+ *   4. Subsequent clicks via + Shot / + Putt buttons
  */
 
-import { test, expect, chromium } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 const BASE = 'http://localhost:8765/index.html';
+
+// Place the pin (first required click on every fresh hole load)
+async function placePin(page) {
+  const map = page.locator('#map');
+  const box = await map.boundingBox();
+  await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+  await page.waitForTimeout(400);
+}
+
+// Full hole setup: load, wait, place pin
+async function loadAndSetupHole(page) {
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  await placePin(page);
+}
 
 test.describe('App load', () => {
   test('map tiles load and sidebar shows Hole 1 · Par 4', async ({ page }) => {
@@ -20,37 +41,40 @@ test.describe('App load', () => {
 });
 
 test.describe('Guided tee flow', () => {
-  test('tee marker auto-placed and guidance label shown on load', async ({ page }) => {
+  test('tee marker auto-placed and guidance prompts for pin on load', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    // Tee shot auto-placed — one dot should already be on the map
+    // Tee auto-placed — one dot on map
     await expect(page.locator('.map-dot.tee')).toHaveCount(1);
 
-    // Guidance label should be visible with landing prompt
+    // Guidance should prompt to set the pin first
     const guidance = page.locator('#guidance-label');
     await expect(guidance).toBeVisible();
-    await expect(guidance).toContainText('ball land');
+    await expect(guidance).toContainText('pin');
   });
 
-  test('first map tap places landing position (approach), not a second tee', async ({ page }) => {
+  test('first click places pin, second click places tee landing', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
     const map = page.locator('#map');
     const box = await map.boundingBox();
+
+    // First click → pin placed (no new dot, but map-pin appears)
+    await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+    await page.waitForTimeout(400);
+    await expect(page.locator('.map-pin')).toHaveCount(1);
+    expect(await page.locator('.map-dot').count()).toBe(1); // still only tee dot
+
+    // Second click → tee landing placed (approach dot)
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
     await page.waitForTimeout(400);
-
-    // Should now have 2 dots: tee + approach landing
-    const dots = await page.locator('.map-dot').count();
-    expect(dots).toBe(2);
-
-    // First dot is tee, second is approach (blue)
+    expect(await page.locator('.map-dot').count()).toBe(2);
     await expect(page.locator('.map-dot.tee')).toHaveCount(1);
     await expect(page.locator('.map-dot.approach')).toHaveCount(1);
 
-    // Guidance label hidden after placing shot
+    // Guidance clears after landing placed
     await expect(page.locator('#guidance-label')).not.toBeVisible();
   });
 
@@ -58,7 +82,7 @@ test.describe('Guided tee flow', () => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    // Tee row should have a club dropdown and lie buttons
+    // Tee row rendered immediately (tee auto-placed before pin prompt)
     const clubSelect = page.locator('.shot-item .club-select').first();
     await expect(clubSelect).toBeVisible();
 
@@ -66,33 +90,39 @@ test.describe('Guided tee flow', () => {
     await expect(fwBtn).toBeVisible();
   });
 
-  test('carry distance appears in sidebar after landing placed', async ({ page }) => {
+  test('carry distance appears in sidebar after tee landing placed', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    // Before landing: shows hint text
+    // Before landing: tee row shows hint
     const teeDist = page.locator('.shot-item .shot-dist').first();
     await expect(teeDist).toContainText('tap map');
 
-    // Place landing
     const map = page.locator('#map');
     const box = await map.boundingBox();
+
+    // First click → place pin (still no landing)
+    await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+    await page.waitForTimeout(400);
+    await expect(teeDist).toContainText('tap map');
+
+    // Second click → place tee landing
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.4);
     await page.waitForTimeout(400);
 
-    // After landing: shows yardage
+    // Now shows carry yardage
     await expect(teeDist).toContainText('yds');
   });
 });
 
 test.describe('Shot entry flow', () => {
   test('+ Shot button activates with guidance then clears after tap', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await loadAndSetupHole(page);
 
-    // Place landing first to clear auto-mode
     const map = page.locator('#map');
     const box = await map.boundingBox();
+
+    // Place tee landing to finish initial auto-mode
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
     await page.waitForTimeout(400);
 
@@ -110,10 +140,9 @@ test.describe('Shot entry flow', () => {
   });
 
   test('OB lie button marks shot red on map', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await loadAndSetupHole(page);
 
-    // Place approach landing
+    // Place tee landing
     const map = page.locator('#map');
     const box = await map.boundingBox();
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
@@ -124,36 +153,33 @@ test.describe('Shot entry flow', () => {
     await obBtn.click();
     await page.waitForTimeout(200);
 
-    // Dot should now be OB (red) class
     await expect(page.locator('.map-dot.ob')).toHaveCount(1);
   });
 });
 
 test.describe('Putting flow', () => {
-  test('On Green shows guidance and enables pin + putt buttons', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+  test('On Green shows guidance and activates putting phase', async ({ page }) => {
+    await loadAndSetupHole(page);
 
     await page.click('#btn-on-green');
     await expect(page.locator('#btn-on-green')).toHaveClass(/green/);
-    await expect(page.locator('#guidance-label')).toContainText('pin');
+    await expect(page.locator('#guidance-label')).toContainText('Putt');
   });
 
-  test('placing pin then putt shows ft-to-pin in sidebar', async ({ page }) => {
+  test('pin placed on load, putt shows ft-to-pin in sidebar', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    await page.click('#btn-on-green');
     const map = page.locator('#map');
     const box = await map.boundingBox();
 
-    // Place pin
-    await page.click('#btn-place-pin');
+    // First click places pin
     await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.6);
     await page.waitForTimeout(400);
     await expect(page.locator('.map-pin')).toHaveCount(1);
 
-    // Place putt
+    // Enter putting phase and place putt
+    await page.click('#btn-on-green');
     await page.click('#btn-add-putt');
     await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4);
     await page.waitForTimeout(400);
@@ -165,14 +191,15 @@ test.describe('Putting flow', () => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    await page.click('#btn-on-green');
     const map = page.locator('#map');
     const box = await map.boundingBox();
 
-    await page.click('#btn-place-pin');
+    // Place pin (first click)
     await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.6);
     await page.waitForTimeout(400);
 
+    // Enter putting phase and place putt
+    await page.click('#btn-on-green');
     await page.click('#btn-add-putt');
     await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4);
     await page.waitForTimeout(400);
@@ -185,11 +212,12 @@ test.describe('Putting flow', () => {
 
 test.describe('Undo and navigation', () => {
   test('undo removes last placed dot', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await loadAndSetupHole(page);
 
     const map = page.locator('#map');
     const box = await map.boundingBox();
+
+    // Place tee landing
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
     await page.waitForTimeout(400);
 
@@ -212,15 +240,16 @@ test.describe('Undo and navigation', () => {
     await expect(page.locator('#hole-label')).toHaveText('Hole 1 · Par 4');
   });
 
-  test('navigating to new hole resets tee auto-placement', async ({ page }) => {
+  test('navigating to new hole resets tee and prompts for pin', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
     await page.click('#btn-next');
     await page.waitForTimeout(600);
 
-    // Hole 2 should also have auto-placed tee dot
+    // Hole 2: tee auto-placed, guidance prompts for pin
     await expect(page.locator('.map-dot.tee')).toHaveCount(1);
     await expect(page.locator('#guidance-label')).toBeVisible();
+    await expect(page.locator('#guidance-label')).toContainText('pin');
   });
 });
