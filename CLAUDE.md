@@ -7,6 +7,12 @@ Golf shot-tracking web app. Full-screen Leaflet map with a slide-in "Play By Pla
 
 ---
 
+## Golf Rules Reference
+
+**`docs/golf-hole-flowchart.md`** is the authoritative reference for how a golf hole works. Consult it when making decisions about shot flow, penalty handling, relief options, or stroke counting. Resolve any disagreements about golf rules or model design against that document.
+
+---
+
 ## Architecture
 
 ```

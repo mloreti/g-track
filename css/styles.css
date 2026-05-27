@@ -352,6 +352,7 @@ html, body { height: 100%; background: #000; color: var(--text); font-family: sy
 .map-dot.tee      { background: #f5c518; color: #1a1a1a; }
 .map-dot.approach { background: #4a9eff; }
 .map-dot.ob       { background: #e05252; }
+.map-dot.hazard   { background: #e05252; opacity: 0.55; border: 2px dashed #fff; }
 .map-dot.drop     { background: #e0994a; }
 .map-dot.putt     { background: #9b59b6; }
 

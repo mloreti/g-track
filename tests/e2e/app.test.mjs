@@ -3,29 +3,36 @@
  * Requires a local HTTP server at http://localhost:8765 serving the project root.
  * Start with: python3 -m http.server 8765
  *
- * Sequential click flow per hole:
- *   Load → tee auto-placed → click to set pin → click for each shot landing
- *   → mark lie "Green" in sidebar → click for each putt → mark last putt holed
+ * Click flow per hole:
+ *   Load → click to set tee → click to set pin → clicks to place shot landings
+ *   → mark endLie "Green" → clicks for putts → mark last putt holed
  */
 
 import { test, expect } from '@playwright/test';
 
 const BASE = 'http://localhost:8765/index.html';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear());
+});
+
 async function mapBox(page) {
   return page.locator('#map').boundingBox();
 }
 
-// Load page, wait for map, place tee (first click) then pin (second click)
+// Load page and run through setup: tee (click 1), pin (click 2), first shot landing (click 3).
 async function loadAndSetupHole(page) {
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
   const box = await mapBox(page);
-  // First click → tee
-  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55);
+  // Click 1 → tee
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.8);
   await page.waitForTimeout(400);
-  // Second click → pin
-  await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+  // Click 2 → pin
+  await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.2);
+  await page.waitForTimeout(400);
+  // Click 3 → first shot landing (tee shot)
+  await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.55);
   await page.waitForTimeout(400);
 }
 
@@ -40,159 +47,213 @@ test.describe('App load', () => {
   });
 });
 
-test.describe('Guided tee flow', () => {
-  test('on load guidance prompts for tee placement (no tee dot yet)', async ({ page }) => {
+test.describe('Guided setup flow', () => {
+  test('on load guidance prompts for tee placement, no dots yet', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
 
-    await expect(page.locator('.map-dot.tee')).toHaveCount(0);
+    await expect(page.locator('.map-dot')).toHaveCount(0);
+    await expect(page.locator('.map-pin')).toHaveCount(0);
     await expect(page.locator('#guidance-label')).toBeVisible();
     await expect(page.locator('#guidance-label')).toContainText('tee');
   });
 
-  test('first click places tee, second places pin, subsequent clicks place shot landings', async ({ page }) => {
+  test('click 1 places tee marker, click 2 places pin, click 3 places first shot', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
     const box = await mapBox(page);
 
-    // First click → tee
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55);
+    // Click 1 → tee marker appears, guidance switches to pin
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.8);
     await page.waitForTimeout(400);
-    await expect(page.locator('.map-dot.tee')).toHaveCount(1);
-    expect(await page.locator('.map-pin').count()).toBe(0);
+    await expect(page.locator('.map-tee')).toHaveCount(1);
+    await expect(page.locator('#guidance-label')).toContainText('pin');
 
-    // Second click → pin
-    await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+    // Click 2 → pin marker appears, guidance switches to shot
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.2);
     await page.waitForTimeout(400);
-    await expect(page.locator('.map-pin')).toHaveCount(1);
-    expect(await page.locator('.map-dot').count()).toBe(1); // only tee dot
+    await expect(page.locator('.map-pin')).toHaveCount(2); // tee + pin
+    await expect(page.locator('#guidance-label')).toContainText('shot landed');
 
-    // Third click → approach landing
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    // Click 3 → first shot dot appears
+    await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.55);
     await page.waitForTimeout(400);
-    expect(await page.locator('.map-dot').count()).toBe(2);
-    await expect(page.locator('.map-dot.tee')).toHaveCount(1);
+    await expect(page.locator('.map-dot')).toHaveCount(1);
     await expect(page.locator('.map-dot.approach')).toHaveCount(1);
-
-    // Fourth click → next shot (shot mode persists)
-    await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.45);
-    await page.waitForTimeout(400);
-    expect(await page.locator('.map-dot').count()).toBe(3);
   });
 
-  test('sidebar shows tee row with club and lie buttons after tee placed', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
-    const box = await mapBox(page);
-
-    // Place tee first
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55);
-    await page.waitForTimeout(400);
+  test('sidebar shows shot row with club and lie buttons after first shot placed', async ({ page }) => {
+    await loadAndSetupHole(page);
 
     await expect(page.locator('.shot-item .club-select').first()).toBeVisible();
     await expect(page.locator('.lie-btn').filter({ hasText: 'FW' }).first()).toBeVisible();
   });
 
-  test('carry distance appears after approach landing placed', async ({ page }) => {
+  test('carry distance appears immediately after first shot placed', async ({ page }) => {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1500);
     const box = await mapBox(page);
 
-    // Tee click
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55);
+    // Place tee
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.8);
+    await page.waitForTimeout(400);
+    // Place pin
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.2);
     await page.waitForTimeout(400);
 
-    const teeDist = page.locator('.shot-item .shot-dist').first();
-    await expect(teeDist).toContainText('tap map');
+    // Before first shot is placed, there's no shot-desc yet
+    await expect(page.locator('.shot-item .shot-desc')).toHaveCount(0);
 
-    // Pin click (no yardage yet)
-    await page.mouse.click(box.x + box.width * 0.65, box.y + box.height * 0.45);
+    // Place first shot landing — carry is immediately calculable (from hole.tee to shots[0])
+    await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.55);
     await page.waitForTimeout(400);
-    await expect(teeDist).toContainText('tap map');
-
-    // Approach landing click
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.4);
-    await page.waitForTimeout(400);
-    await expect(teeDist).toContainText('yds');
+    const firstDesc = page.locator('.shot-item .shot-desc').first();
+    await expect(firstDesc).toContainText('yds');
   });
 });
 
 test.describe('Shot entry flow', () => {
   test('OB lie button marks shot red on map', async ({ page }) => {
     await loadAndSetupHole(page);
-    const box = await mapBox(page);
 
-    // Place tee landing
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
-    await page.waitForTimeout(400);
-
-    // Mark it OB
-    await page.locator('.lie-btn').filter({ hasText: 'OB' }).first().click();
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
     await page.waitForTimeout(200);
 
     await expect(page.locator('.map-dot.ob')).toHaveCount(1);
   });
 });
 
-test.describe('Putting flow', () => {
-  test('marking approach lie Green switches to putting phase', async ({ page }) => {
+test.describe('OB flow', () => {
+  test('marking OB enters drop mode and shows drop guidance', async ({ page }) => {
+    await loadAndSetupHole(page);
+
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+
+    await expect(page.locator('#guidance-label')).toBeVisible();
+    await expect(page.locator('#guidance-label')).toContainText('drop');
+  });
+
+  test('tapping map after OB places a drop dot', async ({ page }) => {
     await loadAndSetupHole(page);
     const box = await mapBox(page);
 
-    // Place tee landing
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
     await page.waitForTimeout(400);
 
-    // Mark as on green → enters putt mode
+    await expect(page.locator('.map-dot.drop')).toHaveCount(1);
+    await expect(page.locator('.map-dot.ob')).toHaveCount(1);
+    expect(await page.locator('.map-dot').count()).toBe(2); // OB shot + drop
+  });
+
+  test('drop row shows lie buttons but not OB or Penalty options', async ({ page }) => {
+    await loadAndSetupHole(page);
+    const box = await mapBox(page);
+
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
+    await page.waitForTimeout(400);
+
+    const dropItem = page.locator('.shot-item').last();
+    await expect(dropItem.locator('.lie-btn').filter({ hasText: 'FW' }).first()).toBeVisible();
+    await expect(dropItem.locator('.lie-btn').filter({ hasText: 'OB' })).toHaveCount(0);
+    await expect(dropItem.locator('.lie-btn').filter({ hasText: 'Penalty' })).toHaveCount(0);
+  });
+
+  test('drop row has no club selector', async ({ page }) => {
+    await loadAndSetupHole(page);
+    const box = await mapBox(page);
+
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
+    await page.waitForTimeout(400);
+
+    const dropItem = page.locator('.shot-item').last();
+    await expect(dropItem.locator('.club-select')).toHaveCount(0);
+  });
+
+  test('undo after drop removes drop dot and re-enters drop mode', async ({ page }) => {
+    await loadAndSetupHole(page);
+    const box = await mapBox(page);
+
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
+    await page.waitForTimeout(400);
+    expect(await page.locator('.map-dot').count()).toBe(2);
+
+    await page.click('#btn-undo');
+    await page.waitForTimeout(300);
+
+    expect(await page.locator('.map-dot').count()).toBe(1); // OB shot remains
+    await expect(page.locator('.map-dot.drop')).toHaveCount(0);
+    await expect(page.locator('#guidance-label')).toContainText('drop');
+  });
+
+  test('can continue placing shots after drop', async ({ page }) => {
+    await loadAndSetupHole(page);
+    const box = await mapBox(page);
+
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'OB' }).click();
+    await page.waitForTimeout(200);
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.5);
+    await page.waitForTimeout(400);
+    await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.43);
+    await page.waitForTimeout(400);
+
+    expect(await page.locator('.map-dot').count()).toBe(3); // OB + drop + next shot
+    await expect(page.locator('.map-dot.ob')).toHaveCount(1);
+    await expect(page.locator('.map-dot.drop')).toHaveCount(1);
+    await expect(page.locator('.map-dot.approach')).toHaveCount(1);
+  });
+});
+
+test.describe('Putting flow', () => {
+  test('marking shot lie Green switches to putting phase', async ({ page }) => {
+    await loadAndSetupHole(page);
+    const box = await mapBox(page);
+
     await page.locator('.lie-btn').filter({ hasText: 'Green' }).first().click();
     await page.waitForTimeout(200);
 
-    // Next click places a putt
     await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4);
     await page.waitForTimeout(400);
-    await expect(page.locator('.map-dot.putt')).toHaveCount(1);
+    // P1 auto-placed at chip landing + P2 from map click = 2 putt dots
+    await expect(page.locator('.map-dot.putt')).toHaveCount(2);
   });
 
   test('putt shows ft-to-pin in sidebar', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
+    await loadAndSetupHole(page);
     const box = await mapBox(page);
 
-    // Tee, pin, approach landing, mark green, putt
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55); // tee
+    // Place a second shot then mark it green
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await page.waitForTimeout(400);
-    await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.6); // pin
-    await page.waitForTimeout(400);
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5); // approach landing
-    await page.waitForTimeout(400);
-    await page.locator('.lie-btn').filter({ hasText: 'Green' }).first().click(); // on green
+    await page.locator('.shot-item').last().locator('.lie-btn').filter({ hasText: 'Green' }).click();
     await page.waitForTimeout(200);
-    await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4); // putt
+    await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4);
     await page.waitForTimeout(400);
 
-    await expect(page.locator('.map-dot.putt')).toHaveCount(1);
-    await expect(page.locator('.putt-dist')).toContainText('ft to pin');
+    // P1 auto-placed at chip landing + P2 from map click = 2 putt dots
+    await expect(page.locator('.map-dot.putt')).toHaveCount(2);
+    await expect(page.locator('.putt-dist').first()).toContainText('ft to pin');
   });
 
   test('marking putt holed shows ⛳ and updates button', async ({ page }) => {
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(1500);
-    const box = await mapBox(page);
+    await loadAndSetupHole(page);
 
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.55); // tee
-    await page.waitForTimeout(400);
-    await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.6); // pin
-    await page.waitForTimeout(400);
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5); // approach landing
-    await page.waitForTimeout(400);
+    // Mark the tee shot as on the green — auto-places putts[0] at shot position
     await page.locator('.lie-btn').filter({ hasText: 'Green' }).first().click();
     await page.waitForTimeout(200);
-    await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.4); // putt
-    await page.waitForTimeout(400);
 
-    await page.locator('.putt-holed-btn').click();
-    await expect(page.locator('.putt-holed-btn')).toHaveClass(/holed/);
-    await expect(page.locator('.putt-holed-btn')).toContainText('Holed');
+    // putts[0] is auto-placed; mark it holed without another map click
+    await page.locator('.putt-holed-btn').first().click();
+    await expect(page.locator('.putt-holed-btn').first()).toHaveClass(/holed/);
+    await expect(page.locator('.putt-holed-btn').first()).toContainText('Holed');
   });
 });
 
@@ -203,8 +264,8 @@ test.describe('Undo and navigation', () => {
 
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
     await page.waitForTimeout(400);
-
     expect(await page.locator('.map-dot').count()).toBe(2);
+
     await page.click('#btn-undo');
     await page.waitForTimeout(300);
     expect(await page.locator('.map-dot').count()).toBe(1);
@@ -230,7 +291,7 @@ test.describe('Undo and navigation', () => {
     await page.click('#btn-next');
     await page.waitForTimeout(600);
 
-    await expect(page.locator('.map-dot.tee')).toHaveCount(0);
+    await expect(page.locator('.map-dot')).toHaveCount(0);
     await expect(page.locator('#guidance-label')).toBeVisible();
     await expect(page.locator('#guidance-label')).toContainText('tee');
   });

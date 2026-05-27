@@ -1,40 +1,29 @@
-// Strokes Gained calculator against scratch golfer baseline (Broadie).
-// Load once via SGCalc.load(csvText), then use instance methods.
+import { Shot } from '../models/Shot.js';
 
+// Strokes Gained calculator against scratch golfer baseline (Broadie).
 export class SGCalc {
   constructor(rows) {
-    // rows: [{ category, lie, distance, unit, expected_strokes }]
     this._rows = rows;
   }
 
-  // Parse CSV text and return an SGCalc instance
   static fromCSV(csvText) {
-    const lines = csvText.trim().split('\n').slice(1); // skip header
+    const lines = csvText.trim().split('\n').slice(1);
     const rows = lines.map(line => {
       const [category, lie, distance, unit, expected_strokes] = line.split(',');
-      return {
-        category,
-        lie,
-        distance: Number(distance),
-        unit,
-        expected_strokes: Number(expected_strokes),
-      };
+      return { category, lie, distance: Number(distance), unit, expected_strokes: Number(expected_strokes) };
     });
     return new SGCalc(rows);
   }
 
-  // Expected strokes from given position. Interpolates between nearest rows.
   expectedStrokes(category, lie, distance, unit) {
     const candidates = this._rows.filter(
       r => r.category === category && r.lie === lie && r.unit === unit
     );
     if (candidates.length === 0) return null;
 
-    // Exact match
     const exact = candidates.find(r => r.distance === distance);
     if (exact) return exact.expected_strokes;
 
-    // Interpolate between nearest lower and upper
     const lower = [...candidates].filter(r => r.distance <= distance).sort((a, b) => b.distance - a.distance)[0];
     const upper = [...candidates].filter(r => r.distance >= distance).sort((a, b) => a.distance - b.distance)[0];
 
@@ -46,84 +35,96 @@ export class SGCalc {
     return lower.expected_strokes + t * (upper.expected_strokes - lower.expected_strokes);
   }
 
-  // SG:Putting for an array of Putt objects (last putt must have holed=true)
-  // Formula: expected(first_putt_dist_ft) - num_putts
+  // SG:Putting — expected(first_putt_dist_ft) - num_putts
   sgPutting(putts) {
     if (!putts || putts.length === 0) return null;
-    const firstDistFt = putts[0].distFt;
-    const expected = this.expectedStrokes('putting', 'green', firstDistFt, 'ft');
+    const expected = this.expectedStrokes('putting', 'green', putts[0].distFt, 'ft');
     if (expected === null) return null;
     return expected - putts.length;
   }
 
-  // SG:Off the Tee for the tee shot (Shot with type 'tee')
-  // SG = expected(tee, distance) - 1 - expected(next_position)
+  // SG:Off the Tee — based on hole length (tee to pin) and where tee shot landed
   sgOffTee(holeRound) {
-    const tee = holeRound.shots[0];
-    if (!tee || tee.type !== 'tee') return null;
-    if (!holeRound.pin) return null;
+    if (!holeRound.tee || !holeRound.pin) return null;
+    if (holeRound.shots.length === 0) return null;
 
-    // Tee-to-pin distance is the baseline distance for SG:OTT
-    const holeDist = holeRound.toPinYds(0);
-    if (holeDist === null) return null;
+    const holeDist      = Shot.distanceYds(holeRound.tee, holeRound.pin);
     const expectedStart = this.expectedStrokes('tee', 'tee', holeDist, 'yds');
+    if (expectedStart === null) return null;
 
-    // Next shot expected strokes — starting lie for shots[1] is where the tee shot landed (tee.lie)
-    if (!holeRound.shots[1]) return null;
-    const nextDist = holeRound.toPinYds(1);
-    if (nextDist === null) return null;
-    const nextLie = tee.lie ?? 'fairway';
-    const expectedNext = this.expectedStrokes('approach', nextLie, nextDist, 'yds');
+    const teeShot = holeRound.shots[0];
 
-    if (expectedStart === null || expectedNext === null) return null;
+    // Tee shot into penalty/OB: the ball is re-played from the drop.
+    // Cost = tee stroke + penalty stroke = 2. Use the drop's endLie/dist.
+    if (teeShot.isInPenalty()) {
+      const dropShot = holeRound.shots.find(s => s.isPenaltyStroke());
+      if (!dropShot) return null;
+      const dropIdx  = holeRound.shots.indexOf(dropShot);
+      const dropDist = holeRound.toPinYds(dropIdx);
+      if (dropDist === null) return null;
+      const dropLie = dropShot.endLie ?? 'fairway';
+      const expectedAfterDrop = dropLie === 'green'
+        ? this.expectedStrokes('putting', 'green', dropDist * 3, 'ft')
+        : this.expectedStrokes('approach', dropLie, dropDist, 'yds');
+      if (expectedAfterDrop === null) return null;
+      return expectedStart - 2 - expectedAfterDrop;
+    }
+
+    // Normal case
+    const endDist = holeRound.toPinYds(0);
+    if (endDist === null) return null;
+    const endLie = teeShot.endLie ?? 'fairway';
+    const expectedNext = endLie === 'green'
+      ? this.expectedStrokes('putting', 'green', endDist * 3, 'ft')
+      : this.expectedStrokes('approach', endLie, endDist, 'yds');
+    if (expectedNext === null) return null;
     return expectedStart - 1 - expectedNext;
   }
 
-  // SG:Approach for all approach shots (between tee and green)
+  // SG:Approach — for all shots after the tee shot result (shots[1+])
+  // shots[i].startLie = lie ball was in, shots[i].endLie = where ball ended up
   sgApproach(holeRound) {
-    const approachShots = holeRound.shots.slice(1).filter(s => s.type === 'approach' || s.type === 'drop');
-    if (approachShots.length === 0) return null;
+    if (holeRound.shots.length < 2) return null;
 
     let total = 0;
     let counted = 0;
-    for (let i = 0; i < approachShots.length; i++) {
-      const globalIdx = holeRound.shots.indexOf(approachShots[i]);
-      const dist = holeRound.toPinYds(globalIdx);
-      if (dist === null) continue;
 
-      // Starting lie = where the previous shot landed (result of shots[globalIdx-1])
-      const prevLie = holeRound.shots[globalIdx - 1]?.lie ?? 'fairway';
-      if (prevLie === 'green') continue; // starting on green → this is a putt, not approach
+    for (let i = 1; i < holeRound.shots.length; i++) {
+      const shot = holeRound.shots[i];
 
-      const expectedStart = this.expectedStrokes('approach', prevLie, dist, 'yds');
+      // Skip penalty strokes — no club swing, no SG contribution
+      if (shot.isPenaltyStroke()) continue;
+
+      // Starting position = shots[i-1] (where ball was before this stroke)
+      const startDist = holeRound.toPinYds(i - 1);
+      if (startDist === null) continue;
+
+      const startLie = shot.startLie ?? holeRound.shots[i - 1]?.endLie ?? 'fairway';
+      if (startLie === 'green') continue; // on the green = putting, not approach
+
+      const expectedStart = this.expectedStrokes('approach', startLie, startDist, 'yds');
       if (expectedStart === null) continue;
 
-      // Result lie = where this shot landed (shots[globalIdx].lie)
-      const resultLie = approachShots[i].lie ?? 'fairway';
+      // Ending position = shots[i] (where ball ended up)
+      const endLie  = shot.endLie ?? 'fairway';
+      const endDist = holeRound.toPinYds(i);
 
       let expectedNext;
-      if (i < approachShots.length - 1) {
-        // Next position is another approach shot
-        const nextGlobalIdx = holeRound.shots.indexOf(approachShots[i + 1]);
-        const nextDist = holeRound.toPinYds(nextGlobalIdx);
-        if (nextDist === null) continue;
-        if (resultLie === 'green') {
-          // Ball is on the green — use putting baseline (yds × 3 ≈ ft)
-          expectedNext = this.expectedStrokes('putting', 'green', nextDist * 3, 'ft');
-        } else {
-          expectedNext = this.expectedStrokes('approach', resultLie, nextDist, 'yds');
-        }
-      } else {
-        // Last approach — next position is first putt on the green
+      if (endLie === 'green' || endLie === 'holed') {
+        // Use putting baseline — prefer first putt distFt, fall back to yds approximation
         const firstPutt = holeRound.putts[0];
-        if (!firstPutt) continue;
-        expectedNext = this.expectedStrokes('putting', 'green', firstPutt.distFt, 'ft');
+        expectedNext = firstPutt
+          ? this.expectedStrokes('putting', 'green', firstPutt.distFt, 'ft')
+          : (endDist !== null ? this.expectedStrokes('putting', 'green', endDist * 3, 'ft') : null);
+      } else if (endDist !== null) {
+        expectedNext = this.expectedStrokes('approach', endLie, endDist, 'yds');
       }
 
-      if (expectedNext === null) continue;
+      if (expectedNext == null) continue;
       total += expectedStart - 1 - expectedNext;
       counted++;
     }
+
     return counted > 0 ? total : null;
   }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { Shot, ShotType, Lie } from '../../js/models/Shot.js';
+import { Shot } from '../../js/models/Shot.js';
 
 describe('Shot.distanceYds', () => {
   it('returns 0 for same point', () => {
@@ -8,9 +8,8 @@ describe('Shot.distanceYds', () => {
   });
 
   it('calculates reasonable yardage between two nearby points', () => {
-    // ~100 yards apart on a golf hole
     const a = { lat: 26.1000, lng: -81.7000 };
-    const b = { lat: 26.1008, lng: -81.7000 }; // ~97 yds north
+    const b = { lat: 26.1008, lng: -81.7000 };
     const yds = Shot.distanceYds(a, b);
     expect(yds).toBeGreaterThan(90);
     expect(yds).toBeLessThan(110);
@@ -25,32 +24,63 @@ describe('Shot.distanceYds', () => {
 
 describe('Shot', () => {
   it('creates with correct defaults', () => {
-    const s = new Shot({ lat: 26.1, lng: -81.7 }, ShotType.TEE);
-    expect(s.type).toBe('tee');
-    expect(s.lie).toBeNull();
+    const s = new Shot({ lat: 26.1, lng: -81.7 }, 'tee');
+    expect(s.startLie).toBe('tee');
+    expect(s.endLie).toBeNull();
     expect(s.club).toBeNull();
   });
 
-  it('isStruck returns false for OB and DROP', () => {
-    expect(new Shot({}, ShotType.OB).isStruck()).toBe(false);
-    expect(new Shot({}, ShotType.DROP).isStruck()).toBe(false);
-    expect(new Shot({}, ShotType.TEE).isStruck()).toBe(true);
-    expect(new Shot({}, ShotType.APPROACH).isStruck()).toBe(true);
+  it('isPenaltyStroke returns true when startLie is penalty or ob', () => {
+    expect(new Shot({}, 'penalty').isPenaltyStroke()).toBe(true);
+    expect(new Shot({}, 'ob').isPenaltyStroke()).toBe(true);
+    expect(new Shot({}, 'tee').isPenaltyStroke()).toBe(false);
+    expect(new Shot({}, 'fairway').isPenaltyStroke()).toBe(false);
   });
 
-  it('OB shot adds 1 penalty stroke', () => {
-    expect(new Shot({}, ShotType.OB).penaltyStrokes()).toBe(1);
-    expect(new Shot({}, ShotType.TEE).penaltyStrokes()).toBe(0);
+  it('isInPenalty returns true when endLie is penalty or ob', () => {
+    const s = new Shot({}, 'tee');
+    s.endLie = 'penalty';
+    expect(s.isInPenalty()).toBe(true);
+
+    s.endLie = 'ob';
+    expect(s.isInPenalty()).toBe(true);
+
+    s.endLie = 'fairway';
+    expect(s.isInPenalty()).toBe(false);
   });
 
   it('round-trips through JSON', () => {
-    const s = new Shot({ lat: 26.1, lng: -81.7 }, ShotType.APPROACH);
-    s.lie  = Lie.FAIRWAY;
-    s.club = '7i';
+    const s = new Shot({ lat: 26.1, lng: -81.7 }, 'fairway');
+    s.endLie = 'green';
+    s.club   = '7i';
     const restored = Shot.fromJSON(s.toJSON());
     expect(restored.latlng).toEqual({ lat: 26.1, lng: -81.7 });
-    expect(restored.type).toBe(ShotType.APPROACH);
-    expect(restored.lie).toBe(Lie.FAIRWAY);
+    expect(restored.startLie).toBe('fairway');
+    expect(restored.endLie).toBe('green');
     expect(restored.club).toBe('7i');
+  });
+
+  it('round-trips penalty stroke through JSON', () => {
+    const s = new Shot({ lat: 26.1, lng: -81.7 }, 'penalty');
+    s.endLie = 'fairway';
+    const restored = Shot.fromJSON(s.toJSON());
+    expect(restored.startLie).toBe('penalty');
+    expect(restored.endLie).toBe('fairway');
+    expect(restored.isPenaltyStroke()).toBe(true);
+  });
+
+  it('migrates old format (type+lie) to new format', () => {
+    const old = { latlng: { lat: 26.1, lng: -81.7 }, type: 'drop', lie: 'fairway', startLie: 'rough', club: null };
+    const s = Shot.fromJSON(old);
+    expect(s.startLie).toBe('rough'); // explicit startLie wins
+    expect(s.endLie).toBe('fairway');
+  });
+
+  it('migrates old tee type to startLie=tee', () => {
+    const old = { latlng: { lat: 26.1, lng: -81.7 }, type: 'tee', lie: 'fairway', club: 'Dr' };
+    const s = Shot.fromJSON(old);
+    expect(s.startLie).toBe('tee');
+    expect(s.endLie).toBe('fairway');
+    expect(s.club).toBe('Dr');
   });
 });

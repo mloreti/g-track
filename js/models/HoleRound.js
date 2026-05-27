@@ -1,19 +1,39 @@
-import { Shot, ShotType } from './Shot.js';
+import { Shot } from './Shot.js';
 import { Putt } from './Putt.js';
 
 export class HoleRound {
   constructor(holeNum, par) {
-    this.holeNum  = holeNum;  // 1-18
-    this.par      = par;      // 3 | 4 | 5
-    this.shots    = [];       // Shot[] — tee through last approach
-    this.putts    = [];       // Putt[] — ordered, last one has holed=true
-    this.pin      = null;     // { lat, lng }
-    this.score    = null;     // confirmed score (null until saved)
-    this.penalties = 0;       // extra penalty strokes (lost ball, etc.)
+    this.holeNum = holeNum;  // 1-18
+    this.par     = par;      // 3 | 4 | 5
+    this.tee     = null;     // { lat, lng } — set by first click (hole data, not a shot)
+    this.pin     = null;     // { lat, lng } — set by second click
+    this.shots   = [];       // Shot[] — ball positions after each stroke
+    this.putts   = [];       // Putt[] — ordered, last one has holed=true
   }
 
-  addShot(latlng, type = ShotType.APPROACH) {
-    const shot = new Shot(latlng, type);
+  // score = total strokes (computed)
+  get score() {
+    return this.shots.length + this.putts.length;
+  }
+
+  // penalties = shots that ended in a penalty area or OB (informational only)
+  get penalties() {
+    return this.shots.filter(s => s.isInPenalty()).length;
+  }
+
+  get scoreToPar() {
+    return this.score - this.par;
+  }
+
+  addShot(latlng, startLie = null) {
+    // Auto-derive startLie from previous shot's endLie if not provided
+    if (startLie === null && this.shots.length > 0) {
+      startLie = this.shots[this.shots.length - 1].endLie;
+    }
+    if (startLie === null && this.shots.length === 0) {
+      startLie = 'tee';
+    }
+    const shot = new Shot(latlng, startLie);
     this.shots.push(shot);
     return shot;
   }
@@ -33,59 +53,44 @@ export class HoleRound {
     return this.putts.pop() ?? null;
   }
 
-  // Carry in yards from shot N to shot N+1 (or to first putt if last approach)
-  carryYds(shotIndex) {
-    const from = this.shots[shotIndex]?.latlng;
-    const to   = this.shots[shotIndex + 1]?.latlng ?? this.putts[0]?.latlng;
+  // Carry in yards for shots[i]: from previous position to shots[i].latlng
+  // Previous position is hole.tee for i===0, otherwise shots[i-1].latlng
+  carryYds(i) {
+    const from = i === 0 ? this.tee : this.shots[i - 1]?.latlng;
+    const to   = this.shots[i]?.latlng;
     if (!from || !to) return null;
     return Shot.distanceYds(from, to);
   }
 
-  // Distance in yards from a shot to the pin
-  toPinYds(shotIndex) {
+  // Distance in yards from shots[i].latlng to the pin
+  toPinYds(i) {
     if (!this.pin) return null;
-    const latlng = this.shots[shotIndex]?.latlng;
+    const latlng = this.shots[i]?.latlng;
     if (!latlng) return null;
     return Shot.distanceYds(latlng, this.pin);
   }
 
-  // Total penalty strokes: OB shots + manual penalties
-  totalPenalties() {
-    const obStrokes = this.shots.reduce((n, s) => n + s.penaltyStrokes(), 0);
-    return obStrokes + this.penalties;
-  }
-
-  // Auto-calculated stroke count (shots + putts + penalties)
-  totalStrokes() {
-    return this.shots.length + this.putts.length + this.totalPenalties();
-  }
-
-  // Hole is complete when the last putt is holed OR score has been manually confirmed
-  // (covers aces, chip-ins, and other hole-outs with 0 putts)
   isComplete() {
-    if (this.score !== null) return true;
     return this.putts.length > 0 && this.putts[this.putts.length - 1].holed;
   }
 
   toJSON() {
     return {
-      holeNum:   this.holeNum,
-      par:       this.par,
-      shots:     this.shots.map(s => s.toJSON()),
-      putts:     this.putts.map(p => p.toJSON()),
-      pin:       this.pin,
-      score:     this.score,
-      penalties: this.penalties,
+      holeNum: this.holeNum,
+      par:     this.par,
+      tee:     this.tee,
+      pin:     this.pin,
+      shots:   this.shots.map(s => s.toJSON()),
+      putts:   this.putts.map(p => p.toJSON()),
     };
   }
 
   static fromJSON(data) {
-    const h = new HoleRound(data.holeNum, data.par);
-    h.shots     = data.shots.map(Shot.fromJSON);
-    h.putts     = data.putts.map(Putt.fromJSON);
-    h.pin       = data.pin;
-    h.score     = data.score;
-    h.penalties = data.penalties ?? 0;
+    const h   = new HoleRound(data.holeNum, data.par);
+    h.tee     = data.tee ?? null;
+    h.pin     = data.pin ?? null;
+    h.shots   = data.shots.map(Shot.fromJSON);
+    h.putts   = data.putts.map(Putt.fromJSON);
     return h;
   }
 }

@@ -1,12 +1,4 @@
 import { MapPoint } from './MapPoint.js';
-import { ShotType } from './Shot.js';
-
-const TYPE_CLASS = {
-  [ShotType.TEE]:      'tee',
-  [ShotType.APPROACH]: 'approach',
-  [ShotType.OB]:       'ob',
-  [ShotType.DROP]:     'drop',
-};
 
 export class ShotMarker extends MapPoint {
   constructor(latlng, shot, index, options = {}) {
@@ -22,19 +14,25 @@ export class ShotMarker extends MapPoint {
     });
   }
 
-  // Call after shot.type or shot.lie changes to update the dot color
   refresh() {
     this._marker?.setIcon(this._buildIcon());
   }
 
   _buildIcon() {
-    const cls   = TYPE_CLASS[this.shot.type] ?? 'approach';
+    let cls;
+    if (this.shot.isInPenalty?.()) {
+      cls = 'ob';       // red — ball ended in penalty/OB
+    } else if (this.shot.isPenaltyStroke?.()) {
+      cls = 'drop';     // orange — this is the penalty drop location
+    } else {
+      cls = 'approach'; // blue — normal ball position
+    }
     const label = this.index + 1;
     return L.divIcon({
-      html:       `<div class="map-dot ${cls}">${label}</div>`,
-      className:  '',
-      iconSize:   [28, 28],
-      iconAnchor: [14, 14],
+      html:      `<div class="map-dot ${cls}">${label}</div>`,
+      className: '',
+      iconSize:  [28, 28],
+      iconAnchor:[14, 14],
     });
   }
 }
